@@ -20,7 +20,12 @@
 				"*.sublime-workspace",
 				"*.user"
 			]
-
+		},
+		{
+			"path": "../py-github-gym",
+			"folder_exclude_patterns": [
+				"gym.egg-info"
+			]
 		}
 	]
 }
