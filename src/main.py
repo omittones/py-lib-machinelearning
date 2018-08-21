@@ -1,26 +1,27 @@
-import gym
 import sys
 import os
 from utils import parse_args
+from test import test
+from run import run
+from ffnet import ffnet
+import cem
 
 def main(args):
-    env = gym.make('BipedalWalker-v2')
-    for i_episode in range(20):
-        print(f"Starting episode {i_episode}")
-        observation = env.reset()
-        t = 0
-        action = 0
-        while True:
-            if t % 10 == 0:
-                env.render()
-            print(observation)
-            action = env.action_space.sample()
-            observation, reward, done, info = env.step(action)
-            t += 1
-            if done:
-                print(f"Episode finished after {t+1} timesteps")
-                break
-
+    if len(args) > 1:
+        command = args[1]
+        if command == 'test':
+            test()
+        elif command == 'cem':
+            cem.execute()
+        elif command == 'ffnet':
+            ffnet.ffnet()
+        elif command == 'test':
+            test.test()
+        else:
+            run()
+    else:
+        run()
+                
 def ask_args(original):
     args = parse_args(input('Args: '))
     ret = original[:]

@@ -11,21 +11,24 @@
 	"folders":
 	[
 		{
-			"path": ".",
-			"folder_exclude_patterns": [
+			"file_exclude_patterns":
+			[
+				"*.sublime-workspace",
+				"*.user"
+			],
+			"folder_exclude_patterns":
+			[
 				"venv",
 				".vs"
 			],
-			"file_exclude_patterns": [
-				"*.sublime-workspace",
-				"*.user"
-			]
+			"path": "."
 		},
 		{
-			"path": "../py-github-gym",
-			"folder_exclude_patterns": [
+			"folder_exclude_patterns":
+			[
 				"gym.egg-info"
-			]
+			],
+			"path": "D:\\Code\\py-github-gym"
 		}
 	]
 }
