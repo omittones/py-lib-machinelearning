@@ -14,9 +14,7 @@ def main(args):
         elif command == 'cem':
             cem.execute()
         elif command == 'ffnet':
-            ffnet.ffnet()
-        elif command == 'test':
-            test.test()
+            ffnet()
         else:
             run()
     else:
