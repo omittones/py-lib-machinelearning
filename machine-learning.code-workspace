@@ -1,0 +1,20 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"files.exclude": {
+			".vs": true,
+			"**/.git": true,
+			"*.sublime-workspace": true
+		},
+		"python.venvFolders": [
+			"envs",
+			".pyenv",
+			".direnv",
+			".virtualenvs"
+		]
+	}
+}
