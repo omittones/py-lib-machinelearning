@@ -1,6 +1,7 @@
 import cntk
 import numpy as np
-#import seaborn as sns
+import seaborn as sns
+import matplotlib.pyplot as plt
 from cntk.learners import sgd
 from cntk.logging import ProgressPrinter
 from cntk.layers import Dense, Sequential
@@ -11,14 +12,14 @@ def xor(x, y):
 def generate_xor_data():
     space = np.linspace(0, 1, 11, True, dtype = np.float32)
     data = [[x, y, xor(x,y)] for x in space for y in space]
-    return np.asarray(data)
+    return np.array(data)
 
 def generate_xor_set(sample_size):
     def tosmax(bool):
         return [0, 1] if bool else [1, 0]
     X = np.random.random(size=(sample_size, 2))
     X = X.astype(np.float32)
-    Y = np.asarray([tosmax(xor(i[0], i[1])) for i in X], dtype=np.float32)
+    Y = np.array([tosmax(xor(i[0], i[1])) for i in X], dtype=np.float32)
     return X, Y
 
 def generate_random_data(sample_size):
@@ -75,9 +76,14 @@ def ffnet():
 
     aggregate_loss = 0.0
 
-    #sns.set(style="whitegrid")
-    #ax = sns.stripplot(x=[]tips["total_bill"])
     data = generate_xor_data()
+
+    fig = plt.figure(figsize=(6,6))
+    ax = fig.subplots()
+    sns.despine(fig, left=True, bottom=True)
+    sns.set(style="whitegrid")
+    ax = sns.stripplot(x = data[:,0], y = data[:,1], hue = data[:,2], ax = ax)
+    plt.show()
 
     for epoch in range(100):
         for (features, labels) in minibatches:
