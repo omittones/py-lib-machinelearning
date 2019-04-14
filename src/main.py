@@ -1,25 +1,34 @@
 import sys
 import os
+import gym
 from utils import parse_args
-from test import test
-from run import run
-from ffnet import ffnet
-import cem
+
 
 def main(args):
     if len(args) > 1:
         command = args[1]
         if command == 'test':
-            test()
+            from test import main
+            main()
         elif command == 'cem':
-            cem.execute()
+            from cem import main
+            main()
         elif command == 'ffnet':
-            ffnet()
+            from ffnet import main
+            main()
+        elif command == 'list':
+            for e in gym.envs.registry.all():
+                print(e.id)
+        elif command == 'rnn':
+            from rnn import main
+            main()
         else:
-            run()
+            from gmy import main
+            main()
     else:
-        run()
-                
+        from gmy import main
+        main()
+
 def ask_args(original):
     args = parse_args(input('Args: '))
     ret = original[:]

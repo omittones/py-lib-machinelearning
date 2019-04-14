@@ -7,8 +7,11 @@
 	"settings": {
 		"files.exclude": {
 			".vs": true,
+			"packages": true,
 			"**/.git": true,
-			"*.sublime-workspace": true
+			"*.sublime-workspace": true,
+			"**/__pycache__": true,
+			"**/*.user": true
 		},
 		"python.venvFolders": [
 			"envs",

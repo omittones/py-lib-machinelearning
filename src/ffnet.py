@@ -38,12 +38,12 @@ def generate_random_data(sample_size):
     Y = np.asarray(np.hstack(class_ind), dtype=np.float32)
     return X, Y
 
-def ffnet():
-    
+def main():
+
     device = cntk.device.gpu(0)
     cntk.device.try_set_default_device(device)
     np.random.seed(98052)
-    
+
     inputs = 2
     outputs = 2
     layers = 2
@@ -107,3 +107,6 @@ def ffnet():
 #from Core import SimulatedTrader
 #obj = SimulatedTrader(None, None)
 #pass
+
+if __name__ == '__main__':
+    main()

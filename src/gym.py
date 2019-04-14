@@ -10,10 +10,9 @@ def attach_close_event(window):
             global stop
             stop = True
 
-def run():
+def main():
     global stop
-    env = gym.make('BipedalWalker-v2')
-    #env = gym.make('LunarLander-v2')
+    env = gym.make('Bowling-v4')
     framelength = 1 / 15
     for i_episode in range(20):
         print(f"Starting episode {i_episode}")
@@ -34,3 +33,6 @@ def run():
             if done:
                 print(f"Episode finished after {t+1} timesteps")
                 break
+
+if __name__ == '__main__':
+    main()

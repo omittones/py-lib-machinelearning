@@ -24,7 +24,7 @@ class ContinuousActionLinearPolicy(object):
         self.b = theta[n_in * n_out : None].reshape(1, n_out)
         self.n_in = n_in
         self.n_out = n_out
-        
+
     def act(self, ob):
         a = ob.dot(self.W) + self.b
         return a.reshape(self.n_out)
@@ -64,7 +64,7 @@ def do_rollout(agent, env, num_steps, render=False):
         if done: break
     return total_rew, t+1
 
-def execute():
+def main():
 
     logger.set_level(logger.INFO)
 
@@ -115,7 +115,7 @@ def execute():
     theta = initial_theta()
     for (i, iterdata) in enumerate(cem(noisy_evaluation, theta, initial_std=10.0, **params)):
         print('Iteration %2i. Episode mean reward: %7.3f'%(i, iterdata['y_mean']))
-        if args.display or i % 10 == 0: 
+        if args.display or i % 10 == 0:
             agent = build_policy(iterdata['theta_mean'])
             do_rollout(agent, env, 200, render=True)
         #writefile('agent-%.4i.pkl'%i, str(pickle.dumps(agent, -1)))
@@ -124,3 +124,6 @@ def execute():
     #writefile('info.json', json.dumps(info))
 
     env.close()
+
+if __name__ == '__main__':
+    main()
