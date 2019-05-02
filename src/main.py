@@ -3,7 +3,6 @@ import os
 import gym
 from utils import parse_args
 
-
 def main(args):
     if len(args) > 1:
         command = args[1]
@@ -23,10 +22,10 @@ def main(args):
             from rnn import main
             main()
         else:
-            from gmy import main
+            from gyms import main
             main()
     else:
-        from gmy import main
+        from gyms import main
         main()
 
 def ask_args(original):

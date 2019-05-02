@@ -12,8 +12,8 @@ def attach_close_event(window):
 
 def main():
     global stop
-    env = gym.make('Bowling-v4')
-    framelength = 1 / 15
+    env = gym.make('MountainCar-v0')
+    framelength = 1.0 / 60
     for i_episode in range(20):
         print(f"Starting episode {i_episode}")
         t = 0
@@ -25,7 +25,6 @@ def main():
             now = time.time()
             if now > last + framelength:
                 last = now
-                print(observation)
                 env.render()
             action = env.action_space.sample()
             observation, reward, done, info = env.step(action)
