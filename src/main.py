@@ -21,11 +21,14 @@ def main(args):
         elif command == 'rnn':
             from rnn import main
             main()
-        else:
+        elif command == 'gyms':
             from gyms import main
             main()
+        else:
+            from learning import main
+            main()
     else:
-        from gyms import main
+        from learning import main
         main()
 
 def ask_args(original):
