@@ -1,7 +1,8 @@
 from keras.layers import Input, Dense, Softmax, LeakyReLU
 from keras.models import Model
+from keras.losses import categorical_crossentropy
 from keras.optimizers import SGD
-from keras import losses
+from matplotlib import pyplot
 import numpy as np
 
 def main():
@@ -17,7 +18,7 @@ def main():
     sgd = SGD(lr=0.05, momentum=0.0, decay=0.0, nesterov=False)
 
     model = Model(inputs=inputs, outputs=outputs)
-    model.compile(optimizer=sgd, loss=losses.categorical_crossentropy, metrics=['accuracy'])
+    model.compile(optimizer=sgd, loss=categorical_crossentropy, metrics=['accuracy'])
 
     data = np.random.random((1000, 2))
     classes = np.zeros((1000, 2))
@@ -29,6 +30,18 @@ def main():
 
     model.fit(x=data, y=classes, epochs=50, verbose=2, batch_size=10)
 
+    prediction = model.predict(data)
+
+    # select 1st category and join it with data to get scatterplot
+    cat1st = prediction[:,0].copy()
+    cat1st.resize((1000, 1))
+    graph = np.hstack([data, cat1st])
+
+    # show graph
+    pyplot.imshow(graph, cmap='hot', interpolation='nearest')
+    pyplot.show()
+
+    # test
     while True:
         x = input('Enter x,y: ')
         if x:
