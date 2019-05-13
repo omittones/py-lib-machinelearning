@@ -4,3 +4,4 @@
 *.user
 /src/__pycache__/
 /packages/
+/.vscode/.ropeproject/objectdb

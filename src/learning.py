@@ -33,13 +33,12 @@ def main():
     prediction = model.predict(data)
 
     # select 1st category and join it with data to get scatterplot
-    cat1st = prediction[:,0].copy()
-    cat1st.resize((1000, 1))
-    graph = np.hstack([data, cat1st])
+    colors = ['red' if i < 0.5 else 'blue' for i in prediction[:,0]]
 
     # show graph
-    pyplot.imshow(graph, cmap='hot', interpolation='nearest')
-    pyplot.show()
+    fig, axes = pyplot.subplots()
+    axes.scatter(data[:,0], data[:,1], c=colors)
+    fig.show()
 
     # test
     while True:
