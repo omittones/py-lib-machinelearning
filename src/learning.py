@@ -1,7 +1,11 @@
+from keras import initializers
 from keras.layers import Input, Dense, Softmax, LeakyReLU
 from keras.models import Model
 from keras.losses import categorical_crossentropy
 from keras.optimizers import SGD
+from keras.callbacks import Callback, LearningRateScheduler
+from keras import backend as K
+import keyboard
 import time
 import numpy as np
 import seaborn as sns
@@ -49,6 +53,36 @@ def user_input_test(model):
         else:
             break
 
+class UserControlledLearningRate(Callback):
+
+    def __init__(self):
+        super().__init__()
+        self.rate = 0.1
+
+    def set_model(self, model):
+        super().set_model(model)
+        if not hasattr(self.model.optimizer, 'lr'):
+            raise ValueError('Optimizer must have a "lr" attribute.')
+        self.rate = K.get_value(self.model.optimizer.lr)
+        print(f'Setting initial learning rate to {self.rate}')
+
+    def on_epoch_begin(self, epoch, logs=None):
+        if keyboard.is_pressed(keyboard.KEY_UP):
+            self.rate *= 2.0
+        elif keyboard.is_pressed(keyboard.KEY_DOWN):
+            self.rate /= 2.0
+        else:
+            return
+        text = f'Epoch {epoch}: changed rate to {self.rate}' 
+        pad = '-' * len(text)
+        print(pad)
+        print(text)
+        print(pad)
+        K.set_value(self.model.optimizer.lr, self.rate)
+
+    def on_epoch_end(self, epoch, logs=None):
+        pass
+
 def main():
     
     data_shape = (1000,2)
@@ -58,26 +92,29 @@ def main():
     classes = np.ones(data_shape, dtype='float32')
     classes[:,0] = classes[:,0] * bools
     classes[:,1] = classes[:,1] * np.invert(bools)  
+    
+    rn = initializers.RandomNormal(mean=0.0, stddev=0.005, seed=4337)
 
     inputs = Input(shape=(2,), dtype='float32')
-    x = Dense(10)(inputs)
+    x = Dense(10, kernel_initializer=rn, bias_initializer=rn)(inputs)
     x = LeakyReLU(alpha=0.3)(x)
-    x = Dense(5)(inputs)
+    x = Dense(5, kernel_initializer=rn, bias_initializer=rn)(inputs)
     x = LeakyReLU(alpha=0.3)(x)
-    x = Dense(2)(x)
+    x = Dense(2, kernel_initializer=rn, bias_initializer=rn)(x)
     outputs = Softmax()(x)
 
     model = Model(inputs=inputs, outputs=outputs)
 
     start = time.time()
-
-    def train(lr, epochs):
-        sgd = SGD(lr=lr, momentum=0.0, decay=0.0, nesterov=False)
+    
+    controller = UserControlledLearningRate()
+    
+    def train(epochs):
+        sgd = SGD(lr=0.1, momentum=0.0, decay=0.0, nesterov=False)
         model.compile(optimizer=sgd, loss=categorical_crossentropy, metrics=['accuracy'])
-        model.fit(x=data, y=classes, epochs=epochs, verbose=2, batch_size=10)
+        model.fit(x=data, y=classes, epochs=epochs, verbose=2, batch_size=10, callbacks=[controller])
 
-    train(0.1, 150)
-    train(0.01, 150)
+    train(300)
 
     prediction = model.predict(data)
     print('Elapsed', time.time() - start, 'seconds')
