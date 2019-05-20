@@ -1,16 +1,14 @@
-from keras import initializers
-from keras import activations
-from keras.layers import Input, Dense, Softmax, LeakyReLU, Activation
-from keras.models import Model
-from keras.losses import categorical_crossentropy
-from keras.optimizers import SGD
-from keras.callbacks import Callback, LearningRateScheduler
-from keras import backend as K
-import keyboard
 import time
 import numpy as np
 import seaborn as sns
+from keras import activations, initializers
+from keras.layers import Activation, Dense, Input, LeakyReLU, Softmax
+from keras.losses import categorical_crossentropy
+from keras.models import Model
+from keras.optimizers import SGD
 from matplotlib import pyplot
+from controllers import UserControlledLearningRate
+
 
 def draw_seaborn_scatter(data, prediction):
     sns.set(style="darkgrid")
@@ -54,37 +52,6 @@ def user_input_test(model):
         else:
             break
 
-class UserControlledLearningRate(Callback):
-
-    def __init__(self):
-        super().__init__()
-        self.rate = 0.1
-
-    def set_model(self, model):
-        super().set_model(model)
-        if not hasattr(self.model.optimizer, 'lr'):
-            raise ValueError('Optimizer must have a "lr" attribute.')
-        self.rate = K.get_value(self.model.optimizer.lr)
-        print(f'Setting initial learning rate to {self.rate}')
-
-    def on_epoch_begin(self, epoch, logs=None):
-        if keyboard.is_pressed(keyboard.KEY_UP):
-            self.rate *= 2.0
-        elif keyboard.is_pressed(keyboard.KEY_DOWN):
-            self.rate /= 2.0
-        elif keyboard.is_pressed('esc'):
-            self.model.stop_training = True
-        else:
-            return
-        text = f'Epoch {epoch}: changed rate to {self.rate}'
-        pad = '-' * len(text)
-        print(pad)
-        print(text)
-        print(pad)
-        K.set_value(self.model.optimizer.lr, self.rate)
-
-    def on_epoch_end(self, epoch, logs=None):
-        pass
 
 def main():
 

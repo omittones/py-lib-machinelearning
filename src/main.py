@@ -3,33 +3,34 @@ import os
 import gym
 from utils import parse_args
 
-def main(args):
+def exec_list():
+    for e in gym.envs.registry.all():
+        print(e.id)
+
+def run(args):
+    from learn_mnist_digits import main
     if len(args) > 1:
         command = args[1]
         if command == 'test':
             from test import main
-            main()
         elif command == 'cem':
             from cem import main
-            main()
         elif command == 'ffnet':
             from ffnet import main
-            main()
         elif command == 'list':
-            for e in gym.envs.registry.all():
-                print(e.id)
+            main = exec_list
         elif command == 'rnn':
             from rnn import main
-            main()
         elif command == 'gyms':
             from gyms import main
-            main()
-        else:
-            from learning import main
-            main()
-    else:
-        from learning import main
-        main()
+        elif command == 'learn':
+            what = args[2]
+            if what == 'mints':
+                from learn_mnist_digits import main
+            elif what == 'xor':
+                from learn_xor import main
+    main()
+
 
 def ask_args(original):
     args = parse_args(input('Args: '))
@@ -37,12 +38,14 @@ def ask_args(original):
     ret.extend(args)
     return ret
 
+
 if __name__ == '__main__':
     try:
-        if sys.modules.get('ptvsd', None) != None:
-            args = ask_args(sys.argv)
-            main(args)
-        else:
-            main(sys.argv)
+        run(sys.argv)
+        # if sys.modules.get('ptvsd', None) != None:
+        #     args = ask_args(sys.argv)
+        #     run(args)
+        # else:
+        #     run(sys.argv)
     except KeyboardInterrupt:
         pass
