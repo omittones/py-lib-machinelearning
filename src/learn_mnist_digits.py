@@ -52,16 +52,27 @@ def main():
     def train(epochs, size, batch_size):
         x = x_train[0:size]
         y = y_train[0:size]
-        sgd = SGD(lr=0.1, momentum=0.01, decay=0.0, nesterov=False)
+        sgd = SGD(lr=0.5, momentum=0.01, decay=0.0, nesterov=False)
         model.compile(optimizer=sgd, loss=categorical_crossentropy, metrics=['accuracy'])
-        model.fit(x=x, y=y, epochs=epochs, verbose=2, batch_size=batch_size, callbacks=[controller])
+        model.fit(x=x, y=y, epochs=epochs, verbose=2, batch_size=batch_size, callbacks=[controller], shuffle=True)
 
     start = time.time()
-    train(10, 10, 1)
-    train(10, 100, 10)
-    train(10, 60000, 100)
+
+
+    # train(100, 100, 10)
+    # train(100, 1000, 100)
+    # train(100, 10000, 1000)
+    # train(100, 60000, 6000)
+    # Elapsed 78.5720272064209 seconds
+    # Test error rate: 4.250001907348633 %
+
+    # train(80, 60000, 100)
+    # Elapsed 77.50399446487427 seconds
+    # Test error rate: 2.0299971103668213 %
+
+    train(500, 60000, 100)
     print('Elapsed', time.time() - start, 'seconds')
 
     final = model.test_on_batch(x_test, y_test)
-    for m in zip(model.metrics_names, final):
-        print(m)
+    final = dict(zip(model.metrics_names, final))
+    print('Test error rate:', (1 - final['acc']) * 100, '%')
