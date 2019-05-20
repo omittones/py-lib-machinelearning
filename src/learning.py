@@ -1,5 +1,6 @@
 from keras import initializers
-from keras.layers import Input, Dense, Softmax, LeakyReLU
+from keras import activations
+from keras.layers import Input, Dense, Softmax, LeakyReLU, Activation
 from keras.models import Model
 from keras.losses import categorical_crossentropy
 from keras.optimizers import SGD
@@ -13,7 +14,7 @@ from matplotlib import pyplot
 
 def draw_seaborn_scatter(data, prediction):
     sns.set(style="darkgrid")
-    
+
     p = sns.blend_palette(['#ff0000','#ff0000','#0000ff','#0000ff'], as_cmap=True)
     f, ax = pyplot.subplots(figsize=(6, 6))
     ax.set_aspect("equal")
@@ -22,7 +23,7 @@ def draw_seaborn_scatter(data, prediction):
 
 
 def draw_seaborn_density(data, prediction):
-    
+
     reds = data[prediction[:,0]>0.5,:]
     blues = data[prediction[:,1]>0.5,:]
 
@@ -71,9 +72,11 @@ class UserControlledLearningRate(Callback):
             self.rate *= 2.0
         elif keyboard.is_pressed(keyboard.KEY_DOWN):
             self.rate /= 2.0
+        elif keyboard.is_pressed('esc'):
+            self.model.stop_training = True
         else:
             return
-        text = f'Epoch {epoch}: changed rate to {self.rate}' 
+        text = f'Epoch {epoch}: changed rate to {self.rate}'
         pad = '-' * len(text)
         print(pad)
         print(text)
@@ -84,21 +87,22 @@ class UserControlledLearningRate(Callback):
         pass
 
 def main():
-    
+
     data_shape = (1000,2)
     data = np.random.random(data_shape)
     bools = data < 0.5
     bools = bools[:,0] != bools[:,1]
     classes = np.ones(data_shape, dtype='float32')
     classes[:,0] = classes[:,0] * bools
-    classes[:,1] = classes[:,1] * np.invert(bools)  
-    
-    rn = initializers.RandomNormal(mean=0.0, stddev=0.005, seed=4337)
+    classes[:,1] = classes[:,1] * np.invert(bools)
+
+    #rn = initializers.RandomNormal(mean=0.0, stddev=0.005, seed=4337)
+    rn = initializers.glorot_uniform()
 
     inputs = Input(shape=(2,), dtype='float32')
-    x = Dense(10, kernel_initializer=rn, bias_initializer=rn)(inputs)
+    x = Dense(4, kernel_initializer=rn, bias_initializer=rn)(inputs)
     x = LeakyReLU(alpha=0.3)(x)
-    x = Dense(5, kernel_initializer=rn, bias_initializer=rn)(inputs)
+    x = Dense(3, kernel_initializer=rn, bias_initializer=rn)(inputs)
     x = LeakyReLU(alpha=0.3)(x)
     x = Dense(2, kernel_initializer=rn, bias_initializer=rn)(x)
     outputs = Softmax()(x)
@@ -106,15 +110,15 @@ def main():
     model = Model(inputs=inputs, outputs=outputs)
 
     start = time.time()
-    
+
     controller = UserControlledLearningRate()
-    
+
     def train(epochs):
-        sgd = SGD(lr=0.1, momentum=0.0, decay=0.0, nesterov=False)
+        sgd = SGD(lr=0.1, momentum=0.1, decay=0.0, nesterov=False)
         model.compile(optimizer=sgd, loss=categorical_crossentropy, metrics=['accuracy'])
         model.fit(x=data, y=classes, epochs=epochs, verbose=2, batch_size=10, callbacks=[controller])
 
-    train(300)
+    train(10000)
 
     prediction = model.predict(data)
     print('Elapsed', time.time() - start, 'seconds')
