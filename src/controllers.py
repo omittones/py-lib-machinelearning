@@ -3,6 +3,10 @@ from keras import backend as K
 from keras.callbacks import Callback
 
 class UserControlledLearningRate(Callback):
+    """
+    Controller that accepts user input for controlling learning rate
+    and stopping condition during training.
+    """
 
     def __init__(self):
         super().__init__()
