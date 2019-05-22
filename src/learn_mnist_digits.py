@@ -6,7 +6,7 @@ from keras.datasets import mnist
 from keras.optimizers import SGD
 from keras.utils import to_categorical
 from keras.models import Model
-from keras.layers import Input, Dense, LeakyReLU, Softmax, Reshape
+from keras.layers import Input, Dense, LeakyReLU, Softmax, Dropout, Flatten, Conv2D, Reshape, MaxPool2D, Activation
 from keras.losses import categorical_crossentropy
 from keras.metrics import categorical_accuracy
 import keras.backend as K
@@ -18,15 +18,19 @@ from controllers import UserControlledLearningRate, Stopwatch
 
 def build_model():
     rn = initializers.glorot_uniform()
-    inputs = Input(shape=(28, 28), dtype='float32')
+    inputs = Input(shape=(28, 28, 1), dtype='float32')
     x = inputs
-    l = Reshape((28*28,))
-    x = l(x)
-    l = Dense(200, kernel_initializer=rn, bias_initializer=rn)
+    l = Conv2D(filters=6, kernel_size=(4,4), strides=(2,2), padding='same', use_bias=True, kernel_initializer=rn, bias_initializer=rn)
     x = l(x)
     l = LeakyReLU(alpha=0.3)
     x = l(x)
+    l = MaxPool2D()
+    x = l(x)
+    l = Flatten()
+    x = l(x)
     l = Dense(100, kernel_initializer=rn, bias_initializer=rn)
+    x = l(x)
+    l = Dropout(rate=0.3)
     x = l(x)
     l = LeakyReLU(alpha=0.3)
     x = l(x)
@@ -38,8 +42,9 @@ def build_model():
 
 
 def prepare_data(x, y):
+    y = to_categorical(y, 10).astype('float32')
     x = x / 255
-    y = to_categorical(y, 10)
+    x = x.reshape((-1, 28, 28, 1)).astype('float32')
     return (x, y)
 
 
@@ -64,14 +69,10 @@ def unstack(sample):
     return (bx, by)
 
 
-def show_failures(model, x, y):
-    prediction = model.predict_on_batch(x)
-    pi = np.argmax(prediction, axis=1)
-    yi = np.argmax(y, axis=1)
-    fails = [x for x, y, t in zip(x, yi, pi) if y != t]
+def show_images(images):
     i = 0
     figure = plt.figure()
-    for img in fails:
+    for img in images:
         i += 1
         ax = figure.add_subplot(10, 10, i)
         ax.imshow(img, cmap='gray')
@@ -81,38 +82,61 @@ def show_failures(model, x, y):
     plt.show()
 
 
+def show_failures(model, x, y):
+    prediction = model.predict_on_batch(x)
+    pi = np.argmax(prediction, axis=1)
+    yi = np.argmax(y, axis=1)
+    fails = [x for x, y, t in zip(x, yi, pi) if y != t]
+    show_images(fails)
+
+
 def main():
+    import cntk
+    print (cntk.__version__)
+    return
+
     (x_train, y_train), (x_test, y_test) = mnist.load_data()
     x_train, y_train = prepare_data(x_train, y_train)
     x_test, y_test = prepare_data(x_test, y_test)
-
-    generator = ImageDataGenerator(
-        rotation_range=30,
-        zoom_range=0,
-        width_shift_range=4,
-        height_shift_range=4,
-        shear_range=10,
-        #brightness_range=(0, 1),
-        fill_mode='nearest',
-        data_format='channels_last')
+    x_train = np.concatenate([x_train, x_test])
+    y_train = np.concatenate([y_train, y_test])
 
     model = build_model()
     controller = UserControlledLearningRate()
 
     epochs = 500
-    size = 60000
     batch_size = 100
 
-    with Stopwatch('Preparing data'):
-        x_train = np.stack([x_train, x_train, x_train], axis = 3)
-        preview_transformations(generator, x_train)
-        data = generator.flow(x_train, y_train, batch_size=size)
-        x_train, y_train = next(map(unstack, data))
+    # multiplier = np.random.uniform(0, 1, x_train.shape[0])
+    # noise = np.random.normal(0.2, 0.2, x_train.shape)
+    # x_train += multiplier[:, None, None] * noise
+    # show_images(x_train)
+
+    # with Stopwatch('Preparing data'):
+    #     generator = ImageDataGenerator(
+    #          rotation_range=30,
+    #          zoom_range=0,
+    #          width_shift_range=4,
+    #          height_shift_range=4,
+    #          shear_range=10,
+    #          #brightness_range=(0, 1),
+    #          fill_mode='nearest',
+    #          data_format='channels_last')
+    #     x_train = np.stack([x_train, x_train, x_train], axis = 3)
+    #     preview_transformations(generator, x_train)
+    #     data = generator.flow(x_train, y_train, batch_size=size)
+    #     x_train, y_train = next(map(unstack, data))
 
     with Stopwatch('Training'):
         sgd = SGD(lr=0.5, momentum=0.01, decay=0.0, nesterov=False)
         model.compile(optimizer=sgd, loss=categorical_crossentropy, metrics=['accuracy'])
-        model.fit(x=x_train, y=y_train, epochs=epochs, verbose=2, batch_size=batch_size, callbacks=[controller], shuffle=True)
+        model.fit(x=x_train, y=y_train,
+            validation_split=0.15,
+            epochs=epochs,
+            verbose=2,
+            batch_size=batch_size,
+            callbacks=[controller],
+            shuffle=True)
 
     # model.fit_generator(
     #     data,
@@ -120,7 +144,6 @@ def main():
     #     epochs=epochs,
     #     verbose=1,
     #     callbacks=[controller])
-
 
     stats = model.test_on_batch(x_test, y_test)
     stats = dict(zip(model.metrics_names, stats))
