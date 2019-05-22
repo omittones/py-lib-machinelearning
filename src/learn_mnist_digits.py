@@ -8,11 +8,13 @@ from keras.utils import to_categorical
 from keras.models import Model
 from keras.layers import Input, Dense, LeakyReLU, Softmax, Reshape
 from keras.losses import categorical_crossentropy
+from keras.metrics import categorical_accuracy
+import keras.backend as K
 from keras.preprocessing.image import ImageDataGenerator
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
-from controllers import UserControlledLearningRate
+from controllers import UserControlledLearningRate, Stopwatch
 
 def build_model():
     rn = initializers.glorot_uniform()
@@ -20,11 +22,11 @@ def build_model():
     x = inputs
     l = Reshape((28*28,))
     x = l(x)
-    l = Dense(100, kernel_initializer=rn, bias_initializer=rn)
+    l = Dense(200, kernel_initializer=rn, bias_initializer=rn)
     x = l(x)
     l = LeakyReLU(alpha=0.3)
     x = l(x)
-    l = Dense(50, kernel_initializer=rn, bias_initializer=rn)
+    l = Dense(100, kernel_initializer=rn, bias_initializer=rn)
     x = l(x)
     l = LeakyReLU(alpha=0.3)
     x = l(x)
@@ -56,13 +58,36 @@ def preview_transformations(generator, images):
     plt.show()
 
 
+def unstack(sample):
+    bx, by = sample
+    bx = bx[:,:,:,1]
+    return (bx, by)
+
+
+def show_failures(model, x, y):
+    prediction = model.predict_on_batch(x)
+    pi = np.argmax(prediction, axis=1)
+    yi = np.argmax(y, axis=1)
+    fails = [x for x, y, t in zip(x, yi, pi) if y != t]
+    i = 0
+    figure = plt.figure()
+    for img in fails:
+        i += 1
+        ax = figure.add_subplot(10, 10, i)
+        ax.imshow(img, cmap='gray')
+        ax.get_xaxis().set_visible(False)
+        ax.get_yaxis().set_visible(False)
+        if i == 100: break
+    plt.show()
+
+
 def main():
     (x_train, y_train), (x_test, y_test) = mnist.load_data()
     x_train, y_train = prepare_data(x_train, y_train)
     x_test, y_test = prepare_data(x_test, y_test)
 
     generator = ImageDataGenerator(
-        rotation_range=60,
+        rotation_range=30,
         zoom_range=0,
         width_shift_range=4,
         height_shift_range=4,
@@ -71,45 +96,38 @@ def main():
         fill_mode='nearest',
         data_format='channels_last')
 
-    x_train = np.stack([x_train, x_train, x_train], axis = 3)
-    preview_transformations(generator, x_train)
-
     model = build_model()
     controller = UserControlledLearningRate()
 
-    def train(epochs, size, batch_size):
+    epochs = 500
+    size = 60000
+    batch_size = 100
 
+    with Stopwatch('Preparing data'):
+        x_train = np.stack([x_train, x_train, x_train], axis = 3)
+        preview_transformations(generator, x_train)
+        data = generator.flow(x_train, y_train, batch_size=size)
+        x_train, y_train = next(map(unstack, data))
+
+    with Stopwatch('Training'):
         sgd = SGD(lr=0.5, momentum=0.01, decay=0.0, nesterov=False)
         model.compile(optimizer=sgd, loss=categorical_crossentropy, metrics=['accuracy'])
+        model.fit(x=x_train, y=y_train, epochs=epochs, verbose=2, batch_size=batch_size, callbacks=[controller], shuffle=True)
 
-        def unstack(sample):
-            bx, by = sample
-            bx = bx[:,:,:,1]
-            return (bx, by)
-
-        print('Preparing data...')
-        data = generator.flow(x_train, y_train, batch_size=size)
-        x, y = next(map(unstack, data))
-
-        # model.fit_generator(
-        #     data,
-        #     steps_per_epoch=size/batch_size,
-        #     epochs=epochs,
-        #     verbose=1,
-        #     callbacks=[controller])
-
-        model.fit(x=x, y=y, epochs=epochs, verbose=2, batch_size=batch_size, callbacks=[controller], shuffle=True)
+    # model.fit_generator(
+    #     data,
+    #     steps_per_epoch=size/batch_size,
+    #     epochs=epochs,
+    #     verbose=1,
+    #     callbacks=[controller])
 
 
-    start = time.time()
+    stats = model.test_on_batch(x_test, y_test)
+    stats = dict(zip(model.metrics_names, stats))
+    print('Test loss:', stats['loss'])
+    print('Test error rate:', (1 - stats['acc']) * 100, '%')
 
-    train(500, 60000, 100)
-    print('Elapsed', time.time() - start, 'seconds')
-
-    final = model.test_on_batch(x_test, y_test)
-    final = dict(zip(model.metrics_names, final))
-    print('Test error rate:', (1 - final['acc']) * 100, '%')
-
+    # show_failures(model, x_test, y_test)
 
     # train(100, 100, 10)
     # train(100, 1000, 100)

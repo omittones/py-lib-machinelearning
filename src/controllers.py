@@ -1,6 +1,44 @@
+from timeit import default_timer
+from contextlib import contextmanager
 import keyboard
 from keras import backend as K
 from keras.callbacks import Callback
+
+@contextmanager
+def elapsed_timer():
+    start = default_timer()
+    elapser = lambda: default_timer() - start
+    yield lambda: elapser()
+    end = default_timer()
+    elapser = lambda: end-start
+
+class Stopwatch():
+    """Class used to measure elapsed time"""
+
+    def __init__(self, text = None):
+        self.start = default_timer()
+        self.text = text
+
+    def reset(self):
+        self.start = default_timer()
+
+    def checkpoint(self, text):
+        seconds = None
+        if (self.end):
+            seconds = (default_timer() - self.start)
+        else:
+            seconds = (self.end - self.start)
+        print(text, f"{seconds}s")
+
+    def __enter__(self):
+        self.start = default_timer()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.end = default_timer()
+        if (self.text):
+            self.checkpoint(self.text)
+
 
 class UserControlledLearningRate(Callback):
     """
