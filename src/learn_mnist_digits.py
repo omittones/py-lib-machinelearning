@@ -15,6 +15,8 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
 from controllers import UserControlledLearningRate, Stopwatch
+import tensorflow as tf
+
 
 def build_model():
     rn = initializers.glorot_uniform()
@@ -90,22 +92,36 @@ def show_failures(model, x, y):
     show_images(fails)
 
 
+
+def select_tf_device(device):
+    def _exec(callable, *args, **kwargs):
+        with tf.device(device):
+            return callable(*args, **kwargs)
+    return _exec
+
+
+def multiply_big_matrix(device, big1, big2):
+    with Stopwatch(device):
+        with tf.device(device):
+            a = tf.constant(big1, shape=big1.shape, name='a')
+            b = tf.constant(big2, shape=big2.shape, name='b')
+            c = tf.matmul(a, b)
+            o = tf.reduce_mean(c)
+        with tf.Session() as sess:
+            print (sess.run(o))
+
 def main():
-    import cntk
-    print (cntk.__version__)
-    return
+    # big1 = np.random.rand(2000, 2000)
+    # big2 = np.random.rand(2000, 2000)
+    # multiply_big_matrix('/cpu:0', big1, big2)
+    # multiply_big_matrix('/gpu:0', big1, big2)
+    # return
 
     (x_train, y_train), (x_test, y_test) = mnist.load_data()
     x_train, y_train = prepare_data(x_train, y_train)
     x_test, y_test = prepare_data(x_test, y_test)
     x_train = np.concatenate([x_train, x_test])
     y_train = np.concatenate([y_train, y_test])
-
-    model = build_model()
-    controller = UserControlledLearningRate()
-
-    epochs = 500
-    batch_size = 100
 
     # multiplier = np.random.uniform(0, 1, x_train.shape[0])
     # noise = np.random.normal(0.2, 0.2, x_train.shape)
@@ -127,8 +143,12 @@ def main():
     #     data = generator.flow(x_train, y_train, batch_size=size)
     #     x_train, y_train = next(map(unstack, data))
 
+    model = build_model()
+    controller = UserControlledLearningRate()
+    epochs = 500
+    batch_size = 100
     with Stopwatch('Training'):
-        sgd = SGD(lr=0.5, momentum=0.01, decay=0.0, nesterov=False)
+        sgd = SGD(lr=0.1, momentum=0.01, decay=0.0, nesterov=False)
         model.compile(optimizer=sgd, loss=categorical_crossentropy, metrics=['accuracy'])
         model.fit(x=x_train, y=y_train,
             validation_split=0.15,
