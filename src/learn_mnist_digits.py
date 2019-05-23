@@ -18,7 +18,8 @@ import numpy as np
 from controllers import UserControlledLearningRate, Stopwatch
 
 
-def build_model(filters=8, kernel_size=4, pool_size=2):
+def build_model(filters=8, kernel_size=4, pool_size=2,
+                first_dense=200, second_dense=100):
     rn = initializers.glorot_normal()
     inputs = Input(shape=(28, 28, 1), dtype='float32')
     x = inputs
@@ -34,11 +35,11 @@ def build_model(filters=8, kernel_size=4, pool_size=2):
     x = l(x)
     l = Flatten()
     x = l(x)
-    l = Dense(100, kernel_initializer=rn, bias_initializer=rn)
+    l = Dense(first_dense, kernel_initializer=rn, bias_initializer=rn)
     x = l(x)
     l = LeakyReLU(alpha=0.3)
     x = l(x)
-    l = Dense(50, kernel_initializer=rn, bias_initializer=rn)
+    l = Dense(second_dense, kernel_initializer=rn, bias_initializer=rn)
     x = l(x)
     l = LeakyReLU(alpha=0.3)
     x = l(x)
@@ -130,7 +131,7 @@ def learn(x_train, y_train, x_test, y_test):
     epochs = 500
     batch_size = 100
     with tf.device('/GPU:0'):
-        model = build_model(filters=8, kernel_size=4, pool_size=2)
+        model = build_model(filters=10, kernel_size=5, pool_size=2)
         optimizer = Adadelta(lr=0.08)
         model.compile(optimizer=optimizer, loss=categorical_crossentropy, metrics=['accuracy'])
         model.fit(
