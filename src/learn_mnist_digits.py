@@ -85,7 +85,7 @@ def show_images(images):
     for img in images:
         i += 1
         ax = figure.add_subplot(10, 10, i)
-        ax.imshow(img, cmap='gray')
+        ax.imshow(img.reshape((28,28)), cmap='gray')
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
         if i == 100: break
@@ -154,13 +154,14 @@ def main():
     (x_train, y_train), (x_test, y_test) = mnist.load_data()
     x_train, y_train = prepare_data(x_train, y_train)
     x_test, y_test = prepare_data(x_test, y_test)
+
+    multiplier = np.random.uniform(0, 1, x_train.shape[0])
+    noise = np.random.normal(0.2, 0.2, x_train.shape)
+    x_train += multiplier[:, None, None, None] * noise
+    show_images(x_train)
+
     x = np.concatenate([x_train, x_test])
     y = np.concatenate([y_train, y_test])
-
-    # multiplier = np.random.uniform(0, 1, x.shape[0])
-    # noise = np.random.normal(0.2, 0.2, x.shape)
-    # x += multiplier[:, None, None] * noise
-    # show_images(x)
 
     # with Stopwatch('Preparing data'):
     #     generator = ImageDataGenerator(
