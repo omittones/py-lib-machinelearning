@@ -1,8 +1,8 @@
 from timeit import default_timer
 from contextlib import contextmanager
-import keyboard
 from keras import backend as K
 from keras.callbacks import Callback
+from pynput import keyboard
 
 @contextmanager
 def elapsed_timer():
@@ -49,6 +49,8 @@ class UserControlledLearningRate(Callback):
     def __init__(self):
         super().__init__()
         self.rate = 0.1
+        self.lstnr = keyboard.Listener(on_press=self.handle_key)
+        self.lstnr.start()
 
     def set_model(self, model):
         super().set_model(model)
@@ -57,19 +59,25 @@ class UserControlledLearningRate(Callback):
         self.rate = K.get_value(self.model.optimizer.lr)
         self.rate_changed = False
         print(f'Setting initial learning rate to {self.rate}')
-        keyboard.on_press_key('esc', self.handle_esc)
-        keyboard.on_press_key(keyboard.KEY_UP, self.handle_up)
-        keyboard.on_press_key(keyboard.KEY_DOWN, self.handle_down)
 
-    def handle_esc(self, e):
+    def handle_key(self, key):
+        if key == keyboard.Key.up:
+            self.handle_up()
+        elif key == keyboard.Key.down:
+            self.handle_down()
+        elif key == keyboard.Key.esc:
+            self.handle_esc()
+
+    def handle_esc(self):
         self.model.stop_training = True
+        self.lstnr.stop()
 
-    def handle_up(self, e):
+    def handle_up(self):
         self.rate *= 2.0
         self.rate_changed = True
         print('\nScheduling rate change to', self.rate)
 
-    def handle_down(self, e):
+    def handle_down(self):
         self.rate /= 2.0
         self.rate_changed = True
         print('\nScheduling rate change to', self.rate)

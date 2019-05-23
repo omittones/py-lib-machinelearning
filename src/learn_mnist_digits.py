@@ -18,8 +18,12 @@ import numpy as np
 from controllers import UserControlledLearningRate, Stopwatch
 
 
-def build_model(filters=8, kernel_size=4, pool_size=2,
-                first_dense=200, second_dense=100):
+def build_model(filters=8,
+                kernel_size=4,
+                pool_size=2,
+                first_dense=700,
+                second_dense=200):
+
     rn = initializers.glorot_normal()
     inputs = Input(shape=(28, 28, 1), dtype='float32')
     x = inputs
