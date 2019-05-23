@@ -3,38 +3,46 @@ import itertools
 from math import sqrt, ceil
 from keras import initializers
 from keras.datasets import mnist
-from keras.optimizers import SGD
+from keras.optimizers import Adadelta
 from keras.utils import to_categorical
 from keras.models import Model
-from keras.layers import Input, Dense, LeakyReLU, Softmax, Dropout, Flatten, Conv2D, Reshape, MaxPool2D, Activation
+from keras.layers import Input, Dense, LeakyReLU, Softmax, Dropout, Flatten, Conv2D, Reshape, MaxPooling2D, Activation
 from keras.losses import categorical_crossentropy
 from keras.metrics import categorical_accuracy
-import keras.backend as K
 from keras.preprocessing.image import ImageDataGenerator
+import keras.backend as K
+import tensorflow as tf
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
 from controllers import UserControlledLearningRate, Stopwatch
-import tensorflow as tf
 
 
-def build_model():
-    rn = initializers.glorot_uniform()
+def build_model(filters=8, kernel_size=4, pool_size=2):
+    rn = initializers.glorot_normal()
     inputs = Input(shape=(28, 28, 1), dtype='float32')
     x = inputs
-    l = Conv2D(filters=6, kernel_size=(4,4), strides=(2,2), padding='same', use_bias=True, kernel_initializer=rn, bias_initializer=rn)
+    l = Conv2D(filters=filters,
+                kernel_size=(kernel_size, kernel_size),
+                strides=(1,1),
+                padding='same',
+                use_bias=True,
+                kernel_initializer=rn,
+                bias_initializer=rn)
     x = l(x)
-    l = LeakyReLU(alpha=0.3)
-    x = l(x)
-    l = MaxPool2D()
+    l = MaxPooling2D(pool_size=(pool_size, pool_size))
     x = l(x)
     l = Flatten()
     x = l(x)
     l = Dense(100, kernel_initializer=rn, bias_initializer=rn)
     x = l(x)
-    l = Dropout(rate=0.3)
+    l = LeakyReLU(alpha=0.3)
+    x = l(x)
+    l = Dense(50, kernel_initializer=rn, bias_initializer=rn)
     x = l(x)
     l = LeakyReLU(alpha=0.3)
+    x = l(x)
+    l = Dropout(rate=0.3)
     x = l(x)
     l = Dense(10, kernel_initializer=rn, bias_initializer=rn)
     x = l(x)
@@ -92,41 +100,67 @@ def show_failures(model, x, y):
     show_images(fails)
 
 
+def optimize(x, y):
+    x = x[0:60000]
+    y = y[0:60000]
+    for hyper in [0.008, 0.016, 0.032, 0.064]:
+        with tf.device('/GPU:0'):
+            model = build_model(filters=8, kernel_size=4, pool_size=2)
+            optimizer = Adadelta(lr=0.08)
+            model.compile(optimizer=optimizer, loss=categorical_crossentropy, metrics=['accuracy'])
+            result = model.fit(
+                x=x,
+                y=y,
+                epochs=5,
+                verbose=1,
+                batch_size=128,
+                shuffle=True)
 
-def select_tf_device(device):
-    def _exec(callable, *args, **kwargs):
-        with tf.device(device):
-            return callable(*args, **kwargs)
-    return _exec
+            plt.plot(result.history['loss'], label=f'{hyper}-loss')
+            print(hyper, result.history['loss'][-1])
+
+    plt.ylabel('Loss')
+    plt.xlabel('Epoch')
+    plt.legend()
+    plt.show()
 
 
-def multiply_big_matrix(device, big1, big2):
-    with Stopwatch(device):
-        with tf.device(device):
-            a = tf.constant(big1, shape=big1.shape, name='a')
-            b = tf.constant(big2, shape=big2.shape, name='b')
-            c = tf.matmul(a, b)
-            o = tf.reduce_mean(c)
-        with tf.Session() as sess:
-            print (sess.run(o))
+def learn(x_train, y_train, x_test, y_test):
+    controller = UserControlledLearningRate()
+    epochs = 500
+    batch_size = 100
+    with tf.device('/GPU:0'):
+        model = build_model(filters=8, kernel_size=4, pool_size=2)
+        optimizer = Adadelta(lr=0.08)
+        model.compile(optimizer=optimizer, loss=categorical_crossentropy, metrics=['accuracy'])
+        model.fit(
+            x=x_train,
+            y=y_train,
+            validation_split=0.15,
+            epochs=epochs,
+            verbose=1,
+            batch_size=batch_size,
+            callbacks=[controller],
+            shuffle=True)
+
+        stats = model.test_on_batch(x_test, y_test)
+        stats = dict(zip(model.metrics_names, stats))
+        print('Test loss:', stats['loss'])
+        print('Test error rate:', (1 - stats['acc']) * 100, '%')
+        # show_failures(model, x_test, y_test)
+
 
 def main():
-    # big1 = np.random.rand(2000, 2000)
-    # big2 = np.random.rand(2000, 2000)
-    # multiply_big_matrix('/cpu:0', big1, big2)
-    # multiply_big_matrix('/gpu:0', big1, big2)
-    # return
-
     (x_train, y_train), (x_test, y_test) = mnist.load_data()
     x_train, y_train = prepare_data(x_train, y_train)
     x_test, y_test = prepare_data(x_test, y_test)
-    x_train = np.concatenate([x_train, x_test])
-    y_train = np.concatenate([y_train, y_test])
+    x = np.concatenate([x_train, x_test])
+    y = np.concatenate([y_train, y_test])
 
-    # multiplier = np.random.uniform(0, 1, x_train.shape[0])
-    # noise = np.random.normal(0.2, 0.2, x_train.shape)
-    # x_train += multiplier[:, None, None] * noise
-    # show_images(x_train)
+    # multiplier = np.random.uniform(0, 1, x.shape[0])
+    # noise = np.random.normal(0.2, 0.2, x.shape)
+    # x += multiplier[:, None, None] * noise
+    # show_images(x)
 
     # with Stopwatch('Preparing data'):
     #     generator = ImageDataGenerator(
@@ -138,25 +172,18 @@ def main():
     #          #brightness_range=(0, 1),
     #          fill_mode='nearest',
     #          data_format='channels_last')
-    #     x_train = np.stack([x_train, x_train, x_train], axis = 3)
-    #     preview_transformations(generator, x_train)
-    #     data = generator.flow(x_train, y_train, batch_size=size)
-    #     x_train, y_train = next(map(unstack, data))
+    #     x = np.stack([x, x, x], axis = 3)
+    #     preview_transformations(generator, x)
+    #     data = generator.flow(x, y, batch_size=size)
+    #     x, y = next(map(unstack, data))
 
-    model = build_model()
-    controller = UserControlledLearningRate()
-    epochs = 500
-    batch_size = 100
-    with Stopwatch('Training'):
-        sgd = SGD(lr=0.1, momentum=0.01, decay=0.0, nesterov=False)
-        model.compile(optimizer=sgd, loss=categorical_crossentropy, metrics=['accuracy'])
-        model.fit(x=x_train, y=y_train,
-            validation_split=0.15,
-            epochs=epochs,
-            verbose=2,
-            batch_size=batch_size,
-            callbacks=[controller],
-            shuffle=True)
+    config = tf.ConfigProto(log_device_placement=False)
+    sess = tf.Session(config=config)
+    K.set_session(sess)
+
+    learn(x, y, x_test, y_test)
+
+
 
     # model.fit_generator(
     #     data,
@@ -164,13 +191,6 @@ def main():
     #     epochs=epochs,
     #     verbose=1,
     #     callbacks=[controller])
-
-    stats = model.test_on_batch(x_test, y_test)
-    stats = dict(zip(model.metrics_names, stats))
-    print('Test loss:', stats['loss'])
-    print('Test error rate:', (1 - stats['acc']) * 100, '%')
-
-    # show_failures(model, x_test, y_test)
 
     # train(100, 100, 10)
     # train(100, 1000, 100)

@@ -67,10 +67,12 @@ class UserControlledLearningRate(Callback):
     def handle_up(self, e):
         self.rate *= 2.0
         self.rate_changed = True
+        print('\nScheduling rate change to', self.rate)
 
     def handle_down(self, e):
         self.rate /= 2.0
         self.rate_changed = True
+        print('\nScheduling rate change to', self.rate)
 
     def on_epoch_begin(self, epoch, logs=None):
         if self.rate_changed:

@@ -12,7 +12,9 @@ def run(args):
     if len(args) > 1:
         command = args[1]
         if command == 'test':
-            from test import main
+            what = args[2]
+            if what == 'tf':
+                from test_tf import main
         elif command == 'cem':
             from cem import main
         elif command == 'ffnet':
@@ -25,7 +27,7 @@ def run(args):
             from gyms import main
         elif command == 'learn':
             what = args[2]
-            if what == 'mints':
+            if what == 'mnist':
                 from learn_mnist_digits import main
             elif what == 'xor':
                 from learn_xor import main
@@ -41,11 +43,10 @@ def ask_args(original):
 
 if __name__ == '__main__':
     try:
-        run(sys.argv)
-        # if sys.modules.get('ptvsd', None) != None:
-        #     args = ask_args(sys.argv)
-        #     run(args)
-        # else:
-        #     run(sys.argv)
+        if sys.modules.get('ptvsd', None) != None:
+            args = ask_args(sys.argv)
+            run(args)
+        else:
+            run(sys.argv)
     except KeyboardInterrupt:
         pass
