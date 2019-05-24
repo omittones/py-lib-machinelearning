@@ -21,11 +21,12 @@ from controllers import UserControlledLearningRate, Stopwatch
 def build_model(filters=8,
                 kernel_size=4,
                 pool_size=2,
-                first_dense=700,
-                second_dense=200):
+                first_dense=200,
+                second_dense=100,
+                input_tensor=None):
 
     rn = initializers.glorot_normal()
-    inputs = Input(shape=(28, 28, 1), dtype='float32')
+    inputs = Input(shape=(28, 28, 1), dtype='float32', tensor=input_tensor)
     x = inputs
     l = Conv2D(filters=filters,
                 kernel_size=(kernel_size, kernel_size),
@@ -66,22 +67,7 @@ def prepare_data(x, y):
 def preview_transformations(generator, images):
     images = images[0:100]
     transformed = next(generator.flow(images, batch_size=100))
-    figure = plt.figure()
-    i = 0
-    for img in transformed:
-        i += 1
-        ax = figure.add_subplot(10, 10, i)
-        ax.imshow(img, cmap='gray')
-        ax.get_xaxis().set_visible(False)
-        ax.get_yaxis().set_visible(False)
-
-    plt.show()
-
-
-def unstack(sample):
-    bx, by = sample
-    bx = bx[:,:,:,1]
-    return (bx, by)
+    show_images(transformed)
 
 
 def show_images(images):
@@ -103,6 +89,12 @@ def show_failures(model, x, y):
     yi = np.argmax(y, axis=1)
     fails = [x for x, y, t in zip(x, yi, pi) if y != t]
     show_images(fails)
+
+
+def unstack(sample):
+    bx, by = sample
+    bx = bx[:,:,:,1]
+    return (bx, by)
 
 
 def optimize(x, y):
@@ -134,28 +126,34 @@ def learn(x_train, y_train, x_test, y_test):
     controller = UserControlledLearningRate()
     epochs = 500
     batch_size = 100
-    with tf.device('/GPU:0'):
-        model = build_model(filters=10, kernel_size=5, pool_size=2)
-        optimizer = Adadelta(lr=0.08)
-        model.compile(optimizer=optimizer, loss=categorical_crossentropy, metrics=['accuracy'])
-        model.fit(
-            x=x_train,
-            y=y_train,
-            validation_split=0.15,
-            epochs=epochs,
-            verbose=1,
-            batch_size=batch_size,
-            callbacks=[controller],
-            shuffle=True)
 
-        stats = model.test_on_batch(x_test, y_test)
-        stats = dict(zip(model.metrics_names, stats))
-        print('Test loss:', stats['loss'])
-        print('Test error rate:', (1 - stats['acc']) * 100, '%')
-        # show_failures(model, x_test, y_test)
+    model = build_model(filters=8, kernel_size=4, pool_size=2)
+    optimizer = Adadelta(lr=0.08)
+    model.compile(optimizer=optimizer, loss=categorical_crossentropy, metrics=['accuracy'])
+    model.fit(
+        x=x_train,
+        y=y_train,
+        #validation_data=(x_test, y_test),
+        epochs=epochs,
+        verbose=1,
+        #batch_size=batch_size,
+        steps_per_epoch=100,
+        callbacks=[controller],
+        shuffle=True)
+
+    stats = model.test_on_batch(x_test, y_test)
+    stats = dict(zip(model.metrics_names, stats))
+    print('Test loss:', stats['loss'])
+    print('Test error rate:', (1 - stats['acc']) * 100, '%')
+
+    return model
 
 
-def main():
+def main(preview_data = False):
+
+
+
+
     (x_train, y_train), (x_test, y_test) = mnist.load_data()
     x_train, y_train = prepare_data(x_train, y_train)
     x_test, y_test = prepare_data(x_test, y_test)
@@ -163,7 +161,9 @@ def main():
     multiplier = np.random.uniform(0, 1, x_train.shape[0])
     noise = np.random.normal(0.2, 0.2, x_train.shape)
     x_train += multiplier[:, None, None, None] * noise
-    show_images(x_train)
+
+    if preview_data:
+        show_images(x_train)
 
     x = np.concatenate([x_train, x_test])
     y = np.concatenate([y_train, y_test])
@@ -187,9 +187,29 @@ def main():
     sess = tf.Session(config=config)
     K.set_session(sess)
 
-    learn(x, y, x_test, y_test)
+    with tf.device('/GPU:0'):
 
+        data = tf.data.Dataset.from_tensor_slices((x_train, y_train))
+        data = data.batch(100)
 
+        # t_input = tf.placeholder(dtype='float32', shape=(100,28,28,1), name="input")
+        # t_output = tf.placeholder(dtype='float32', shape=(100,10), name="output")
+        t_input = None
+        t_output = None
+
+        model = build_model(filters=8, kernel_size=4, pool_size=2, input_tensor=t_input)
+        optimizer = Adadelta(lr=0.08)
+        model.compile(optimizer=optimizer, loss=categorical_crossentropy, metrics=['accuracy'], target_tensors=t_output)
+        model.fit(
+            data.make_one_shot_iterator(),
+            epochs=1,
+            verbose=1,
+            steps_per_epoch=1)
+
+        #model = learn(x_tensor, y_tensor, x_test, y_test)
+
+    if preview_data:
+        show_failures(model, x_test, y_test)
 
     # model.fit_generator(
     #     data,
