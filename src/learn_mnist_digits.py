@@ -1,4 +1,4 @@
-import time
+from timeit import default_timer
 import itertools
 from math import sqrt, ceil
 from keras import initializers
@@ -21,8 +21,8 @@ from controllers import UserControlledLearningRate, Stopwatch
 def build_model(filters=8,
                 kernel_size=4,
                 pool_size=2,
-                first_dense=200,
-                second_dense=100,
+                first_dense=100,
+                second_dense=50,
                 input_tensor=None):
 
     rn = initializers.glorot_normal()
@@ -98,46 +98,45 @@ def unstack(sample):
 
 
 def optimize(x, y):
-    x = x[0:60000]
-    y = y[0:60000]
-    for hyper in [0.008, 0.016, 0.032, 0.064]:
+    x = x[0:10000]
+    y = y[0:10000]
+    for hyper in range(0, 10):
         with tf.device('/GPU:0'):
             model = build_model(filters=8, kernel_size=4, pool_size=2)
-            optimizer = Adadelta(lr=0.08)
+            optimizer = Adadelta(lr=0.4)
             model.compile(optimizer=optimizer, loss=categorical_crossentropy, metrics=['accuracy'])
+            start = default_timer()
             result = model.fit(
                 x=x,
                 y=y,
-                epochs=5,
+                epochs=10,
                 verbose=1,
-                batch_size=128,
+                batch_size=132,
                 shuffle=True)
-
-            plt.plot(result.history['loss'], label=f'{hyper}-loss')
-            print(hyper, result.history['loss'][-1])
-
+            duration = default_timer() - start
+            gy = result.history['loss']
+            gx = np.linspace(0, duration, num=len(gy), endpoint=True)
+            plt.plot(gx, gy, label=f'{hyper}-loss')
+            print(hyper, gy[-1])
     plt.ylabel('Loss')
-    plt.xlabel('Epoch')
+    plt.xlabel('Time (sec)')
     plt.legend()
     plt.show()
 
 
 def learn(x_train, y_train, x_test, y_test):
     controller = UserControlledLearningRate()
-    epochs = 500
-    batch_size = 100
 
     model = build_model(filters=8, kernel_size=4, pool_size=2)
-    optimizer = Adadelta(lr=0.08)
+    optimizer = Adadelta(lr=0.4)
     model.compile(optimizer=optimizer, loss=categorical_crossentropy, metrics=['accuracy'])
     model.fit(
         x=x_train,
         y=y_train,
         #validation_data=(x_test, y_test),
-        epochs=epochs,
+        epochs=1000,
         verbose=1,
-        #batch_size=batch_size,
-        steps_per_epoch=100,
+        batch_size=132,
         callbacks=[controller],
         shuffle=True)
 
@@ -145,14 +144,10 @@ def learn(x_train, y_train, x_test, y_test):
     stats = dict(zip(model.metrics_names, stats))
     print('Test loss:', stats['loss'])
     print('Test error rate:', (1 - stats['acc']) * 100, '%')
-
     return model
 
 
 def main(preview_data = False):
-
-
-
 
     (x_train, y_train), (x_test, y_test) = mnist.load_data()
     x_train, y_train = prepare_data(x_train, y_train)
@@ -164,9 +159,6 @@ def main(preview_data = False):
 
     if preview_data:
         show_images(x_train)
-
-    x = np.concatenate([x_train, x_test])
-    y = np.concatenate([y_train, y_test])
 
     # with Stopwatch('Preparing data'):
     #     generator = ImageDataGenerator(
@@ -188,43 +180,7 @@ def main(preview_data = False):
     K.set_session(sess)
 
     with tf.device('/GPU:0'):
-
-        data = tf.data.Dataset.from_tensor_slices((x_train, y_train))
-        data = data.batch(100)
-
-        # t_input = tf.placeholder(dtype='float32', shape=(100,28,28,1), name="input")
-        # t_output = tf.placeholder(dtype='float32', shape=(100,10), name="output")
-        t_input = None
-        t_output = None
-
-        model = build_model(filters=8, kernel_size=4, pool_size=2, input_tensor=t_input)
-        optimizer = Adadelta(lr=0.08)
-        model.compile(optimizer=optimizer, loss=categorical_crossentropy, metrics=['accuracy'], target_tensors=t_output)
-        model.fit(
-            data.make_one_shot_iterator(),
-            epochs=1,
-            verbose=1,
-            steps_per_epoch=1)
-
-        #model = learn(x_tensor, y_tensor, x_test, y_test)
+        model = learn(x_train, y_train, x_test, y_test)
 
     if preview_data:
         show_failures(model, x_test, y_test)
-
-    # model.fit_generator(
-    #     data,
-    #     steps_per_epoch=size/batch_size,
-    #     epochs=epochs,
-    #     verbose=1,
-    #     callbacks=[controller])
-
-    # train(100, 100, 10)
-    # train(100, 1000, 100)
-    # train(100, 10000, 1000)
-    # train(100, 60000, 6000)
-    # Elapsed 78.5720272064209 seconds
-    # Test error rate: 4.250001907348633 %
-
-    # train(80, 60000, 100)
-    # Elapsed 77.50399446487427 seconds
-    # Test error rate: 2.0299971103668213 %
