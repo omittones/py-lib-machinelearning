@@ -18,38 +18,47 @@ import numpy as np
 from controllers import UserControlledLearningRate, Stopwatch
 
 
-def build_model(filters=8,
-                kernel_size=4,
-                pool_size=2,
-                first_dense=100,
-                second_dense=50,
-                input_tensor=None):
+def build_model(input_tensor=None):
 
     rn = initializers.glorot_normal()
     inputs = Input(shape=(28, 28, 1), dtype='float32', tensor=input_tensor)
     x = inputs
-    l = Conv2D(filters=filters,
-                kernel_size=(kernel_size, kernel_size),
+    l = Conv2D(filters=32,
+                kernel_size=(4, 4),
                 strides=(1,1),
                 padding='same',
-                use_bias=True,
+                use_bias=False,
                 kernel_initializer=rn,
                 bias_initializer=rn)
     x = l(x)
-    l = MaxPooling2D(pool_size=(pool_size, pool_size))
+    l = MaxPooling2D(pool_size=(2, 2))
+    x = l(x)
+    l = LeakyReLU(alpha=0.3)
+    x = l(x)
+    l = Conv2D(filters=8,
+               kernel_size=(4, 4),
+               strides=(1,1),
+               padding='same',
+               use_bias=False,
+               kernel_initializer=rn,
+               bias_initializer=rn)
+    x = l(x)
+    l = MaxPooling2D(pool_size=(2, 2))
+    x = l(x)
+    l = LeakyReLU(alpha=0.3)
     x = l(x)
     l = Flatten()
     x = l(x)
-    l = Dense(first_dense, kernel_initializer=rn, bias_initializer=rn)
+    l = Dense(600, kernel_initializer=rn, bias_initializer=rn)
     x = l(x)
     l = LeakyReLU(alpha=0.3)
     x = l(x)
-    l = Dense(second_dense, kernel_initializer=rn, bias_initializer=rn)
+    l = Dense(300, kernel_initializer=rn, bias_initializer=rn)
     x = l(x)
     l = LeakyReLU(alpha=0.3)
     x = l(x)
-    l = Dropout(rate=0.3)
-    x = l(x)
+    # l = Dropout(rate=0.5)
+    # x = l(x)
     l = Dense(10, kernel_initializer=rn, bias_initializer=rn)
     x = l(x)
     l = Softmax()
@@ -102,7 +111,7 @@ def optimize(x, y):
     y = y[0:10000]
     for hyper in range(0, 10):
         with tf.device('/GPU:0'):
-            model = build_model(filters=8, kernel_size=4, pool_size=2)
+            model = build_model()
             optimizer = Adadelta(lr=0.4)
             model.compile(optimizer=optimizer, loss=categorical_crossentropy, metrics=['accuracy'])
             start = default_timer()
@@ -127,13 +136,14 @@ def optimize(x, y):
 def learn(x_train, y_train, x_test, y_test):
     controller = UserControlledLearningRate()
 
-    model = build_model(filters=8, kernel_size=4, pool_size=2)
+    model = build_model()
+    model.summary()
     optimizer = Adadelta(lr=0.4)
     model.compile(optimizer=optimizer, loss=categorical_crossentropy, metrics=['accuracy'])
     model.fit(
         x=x_train,
         y=y_train,
-        #validation_data=(x_test, y_test),
+        validation_data=(x_test, y_test),
         epochs=1000,
         verbose=1,
         batch_size=132,
@@ -142,7 +152,7 @@ def learn(x_train, y_train, x_test, y_test):
 
     stats = model.test_on_batch(x_test, y_test)
     stats = dict(zip(model.metrics_names, stats))
-    print('Test loss:', stats['loss'])
+    print('\nTest loss:', stats['loss'])
     print('Test error rate:', (1 - stats['acc']) * 100, '%')
     return model
 
