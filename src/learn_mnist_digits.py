@@ -6,9 +6,10 @@ from keras.datasets import mnist
 from keras.optimizers import Adadelta
 from keras.utils import to_categorical
 from keras.models import Model
-from keras.layers import Input, Dense, LeakyReLU, Softmax, Dropout, Flatten, Conv2D, Reshape, MaxPooling2D, Activation
+from keras.layers import Input, Dense, LeakyReLU, Softmax, Dropout, Flatten, Conv2D, Reshape, MaxPooling2D, Activation, ReLU, ELU, PReLU
 from keras.losses import categorical_crossentropy
 from keras.metrics import categorical_accuracy
+from keras.callbacks import LearningRateScheduler
 from keras.preprocessing.image import ImageDataGenerator
 import keras.backend as K
 import tensorflow as tf
@@ -21,44 +22,46 @@ from controllers import UserControlledLearningRate, Stopwatch
 def build_model(input_tensor=None):
 
     rn = initializers.glorot_normal()
+    activation = ELU(alpha=0.8)
+
     inputs = Input(shape=(28, 28, 1), dtype='float32', tensor=input_tensor)
     x = inputs
     l = Conv2D(filters=32,
                 kernel_size=(4, 4),
                 strides=(1,1),
                 padding='same',
-                use_bias=False,
+                use_bias=True,
                 kernel_initializer=rn,
                 bias_initializer=rn)
     x = l(x)
     l = MaxPooling2D(pool_size=(2, 2))
     x = l(x)
-    l = LeakyReLU(alpha=0.3)
+    l = activation
     x = l(x)
     l = Conv2D(filters=8,
                kernel_size=(4, 4),
                strides=(1,1),
                padding='same',
-               use_bias=False,
+               use_bias=True,
                kernel_initializer=rn,
                bias_initializer=rn)
     x = l(x)
     l = MaxPooling2D(pool_size=(2, 2))
     x = l(x)
-    l = LeakyReLU(alpha=0.3)
+    l = activation
     x = l(x)
     l = Flatten()
     x = l(x)
     l = Dense(600, kernel_initializer=rn, bias_initializer=rn)
     x = l(x)
-    l = LeakyReLU(alpha=0.3)
+    l = activation
     x = l(x)
     l = Dense(300, kernel_initializer=rn, bias_initializer=rn)
     x = l(x)
-    l = LeakyReLU(alpha=0.3)
+    l = activation
     x = l(x)
-    # l = Dropout(rate=0.5)
-    # x = l(x)
+    l = Dropout(rate=0.5)
+    x = l(x)
     l = Dense(10, kernel_initializer=rn, bias_initializer=rn)
     x = l(x)
     l = Softmax()
@@ -107,25 +110,25 @@ def unstack(sample):
 
 
 def optimize(x, y):
-    x = x[0:10000]
-    y = y[0:10000]
-    for hyper in range(0, 10):
+    #x = x[0:1000]
+    #y = y[0:1000]
+    for hyper in [0.0, 0.0001, 0.0002, 0.0004, 0.0008]:
         with tf.device('/GPU:0'):
             model = build_model()
-            optimizer = Adadelta(lr=0.4)
+            optimizer = Adadelta(decay=0)
             model.compile(optimizer=optimizer, loss=categorical_crossentropy, metrics=['accuracy'])
             start = default_timer()
             result = model.fit(
                 x=x,
                 y=y,
-                epochs=10,
+                epochs=50,
                 verbose=1,
                 batch_size=132,
                 shuffle=True)
             duration = default_timer() - start
             gy = result.history['loss']
             gx = np.linspace(0, duration, num=len(gy), endpoint=True)
-            plt.plot(gx, gy, label=f'{hyper}-loss')
+            plt.plot(gx, gy, label=f'version-{hyper}')
             print(hyper, gy[-1])
     plt.ylabel('Loss')
     plt.xlabel('Time (sec)')
@@ -189,8 +192,10 @@ def main(preview_data = False):
     sess = tf.Session(config=config)
     K.set_session(sess)
 
+    model = None
     with tf.device('/GPU:0'):
-        model = learn(x_train, y_train, x_test, y_test)
+        #model = learn(x_train, y_train, x_test, y_test)
+        optimize(x_train, y_train)
 
-    if preview_data:
+    if model and preview_data:
         show_failures(model, x_test, y_test)
