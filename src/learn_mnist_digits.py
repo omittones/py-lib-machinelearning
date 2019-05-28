@@ -38,7 +38,7 @@ def build_model(input_tensor=None):
     x = l(x)
     l = activation
     x = l(x)
-    l = Conv2D(filters=16,
+    l = Conv2D(filters=32,
                kernel_size=(4, 4),
                strides=(1,1),
                padding='same',
@@ -52,16 +52,16 @@ def build_model(input_tensor=None):
     x = l(x)
     l = Flatten()
     x = l(x)
-    l = Dense(600, kernel_initializer=rn, bias_initializer=rn)
+    l = Dense(500, kernel_initializer=rn, bias_initializer=rn)
     x = l(x)
     l = activation
     x = l(x)
-    l = Dense(300, kernel_initializer=rn, bias_initializer=rn)
+    l = Dense(250, kernel_initializer=rn, bias_initializer=rn)
     x = l(x)
     l = activation
     x = l(x)
-    l = Dropout(rate=0.05)
-    x = l(x)
+    # l = Dropout(rate=0.01)
+    # x = l(x)
     l = Dense(10, kernel_initializer=rn, bias_initializer=rn)
     x = l(x)
     l = Softmax()
@@ -160,7 +160,7 @@ def learn(x_train, y_train, x_test, y_test):
     return model
 
 
-def main(preview_data = False):
+def main(preview_data = True):
 
     (x_train, y_train), (x_test, y_test) = mnist.load_data()
     x_train, y_train = prepare_data(x_train, y_train)
