@@ -38,7 +38,7 @@ def build_model(input_tensor=None):
     x = l(x)
     l = activation
     x = l(x)
-    l = Conv2D(filters=8,
+    l = Conv2D(filters=16,
                kernel_size=(4, 4),
                strides=(1,1),
                padding='same',
@@ -60,7 +60,7 @@ def build_model(input_tensor=None):
     x = l(x)
     l = activation
     x = l(x)
-    l = Dropout(rate=0.5)
+    l = Dropout(rate=0.05)
     x = l(x)
     l = Dense(10, kernel_initializer=rn, bias_initializer=rn)
     x = l(x)
@@ -141,7 +141,7 @@ def learn(x_train, y_train, x_test, y_test):
 
     model = build_model()
     model.summary()
-    optimizer = Adadelta(lr=0.4)
+    optimizer = Adadelta(decay=0)
     model.compile(optimizer=optimizer, loss=categorical_crossentropy, metrics=['accuracy'])
     model.fit(
         x=x_train,
@@ -194,8 +194,8 @@ def main(preview_data = False):
 
     model = None
     with tf.device('/GPU:0'):
-        #model = learn(x_train, y_train, x_test, y_test)
-        optimize(x_train, y_train)
+        model = learn(x_train, y_train, x_test, y_test)
+        #optimize(x_train, y_train)
 
     if model and preview_data:
         show_failures(model, x_test, y_test)
