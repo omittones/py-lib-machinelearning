@@ -27,12 +27,12 @@ def build_model(input_tensor=None):
     inputs = Input(shape=(28, 28, 1), dtype='float32', tensor=input_tensor)
     x = inputs
     l = Conv2D(filters=32,
-                kernel_size=(4, 4),
-                strides=(1,1),
-                padding='same',
-                use_bias=True,
-                kernel_initializer=rn,
-                bias_initializer=rn)
+               kernel_size=(6, 6),
+               strides=(2,2),
+               padding='same',
+               use_bias=True,
+               kernel_initializer=rn,
+               bias_initializer=rn)
     x = l(x)
     l = MaxPooling2D(pool_size=(2, 2))
     x = l(x)
@@ -52,11 +52,11 @@ def build_model(input_tensor=None):
     x = l(x)
     l = Flatten()
     x = l(x)
+    # l = Dense(500, kernel_initializer=rn, bias_initializer=rn)
+    # x = l(x)
+    # l = activation
+    # x = l(x)
     l = Dense(500, kernel_initializer=rn, bias_initializer=rn)
-    x = l(x)
-    l = activation
-    x = l(x)
-    l = Dense(250, kernel_initializer=rn, bias_initializer=rn)
     x = l(x)
     l = activation
     x = l(x)
@@ -99,26 +99,29 @@ def unstack(sample):
 
 
 def optimize(x, y):
-    #x = x[0:1000]
-    #y = y[0:1000]
-    for hyper in [0.0, 0.0001, 0.0002, 0.0004, 0.0008]:
-        with tf.device('/GPU:0'):
-            model = build_model()
-            optimizer = Adadelta(decay=0)
-            model.compile(optimizer=optimizer, loss=categorical_crossentropy, metrics=['accuracy'])
-            start = default_timer()
-            result = model.fit(
-                x=x,
-                y=y,
-                epochs=50,
-                verbose=1,
-                batch_size=132,
-                shuffle=True)
-            duration = default_timer() - start
-            gy = result.history['loss']
-            gx = np.linspace(0, duration, num=len(gy), endpoint=True)
-            plt.plot(gx, gy, label=f'version-{hyper}')
-            print(hyper, gy[-1])
+    x = x[0:10000]
+    y = y[0:10000]
+    try:
+        for hyper in [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100]:
+            with tf.device('/GPU:0'):
+                model = build_model()
+                optimizer = Adadelta(decay=0)
+                model.compile(optimizer=optimizer, loss=categorical_crossentropy, metrics=['accuracy'])
+                start = default_timer()
+                result = model.fit(
+                    x=x,
+                    y=y,
+                    epochs=5,
+                    verbose=1,
+                    batch_size=hyper,
+                    shuffle=True)
+                duration = default_timer() - start
+                gy = result.history['loss']
+                gx = np.linspace(0, duration, num=len(gy), endpoint=True)
+                plt.plot(gx, gy, label=f'version-{hyper}')
+                print(hyper, gy[-1])
+    except:
+        pass
     plt.ylabel('Loss')
     plt.xlabel('Time (sec)')
     plt.legend()
@@ -138,7 +141,7 @@ def learn(x_train, y_train, x_val, y_val):
         validation_data=(x_val, y_val),
         epochs=1000,
         verbose=1,
-        batch_size=132,
+        batch_size=800,
         callbacks=[controller],
         shuffle=True)
     return model
@@ -164,9 +167,9 @@ def main(preview_data = True):
     x_train, y_train = prepare_data(x_train, y_train)
     x_test, y_test = prepare_data(x_test, y_test)
 
-    # multiplier = np.random.uniform(0, 1, x_train.shape[0])
-    # noise = np.random.normal(0.2, 0.2, x_train.shape)
-    # x_train += multiplier[:, None, None, None] * noise
+    multiplier = np.random.uniform(0, 1, x_train.shape[0])
+    noise = np.random.normal(0.2, 0.2, x_train.shape)
+    x_train += multiplier[:, None, None, None] * noise
 
     with Stopwatch('Preparing data'):
         generator = ImageDataGenerator(
@@ -175,11 +178,13 @@ def main(preview_data = True):
              width_shift_range=4,
              height_shift_range=4,
              shear_range=10,
-             brightness_range=(0, 1),
+             brightness_range=None,
              fill_mode='nearest',
              data_format='channels_last')
         data = generator.flow(x_train, y_train, batch_size=len(x_train))
-        x_train, y_train = next(data)
+        x_gen, y_gen = next(data)
+        x_train = np.concatenate((x_train, x_gen), axis=0)
+        y_train = np.concatenate((y_train, y_gen), axis=0)
 
     if preview_data:
         show_images(x_train)
