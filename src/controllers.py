@@ -2,8 +2,7 @@ from timeit import default_timer
 from contextlib import contextmanager
 from keras import backend as K
 from keras.callbacks import Callback
-import key
-from readchar import readchar
+from utils import key, readchar
 
 @contextmanager
 def elapsed_timer():

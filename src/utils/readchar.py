@@ -1,5 +1,5 @@
-import key
 import sys
+from . import key
 
 def readchar():
     raise NotImplementedError('The platform %s is not supported yet' % sys.platform)

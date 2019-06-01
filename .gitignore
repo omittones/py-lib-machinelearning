@@ -1,7 +1,7 @@
 *.sublime-workspace
+__pycache__
 /.vs/
 /venv/
 *.user
-/src/__pycache__/
 /packages/
 /.vscode/.ropeproject/objectdb
