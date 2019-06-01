@@ -6,7 +6,7 @@ stop = False
 def attach_close_event(window):
     if window:
         @window.event
-        def on_close(*args):
+        def on_close(*args): #pylint: disable=unused-variable
             global stop
             stop = True
 
