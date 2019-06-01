@@ -95,11 +95,22 @@ def show_images(images):
     plt.show()
 
 
+def batchify(x, y):
+    size = x.shape[0] - 1
+    start = 0
+    while start < size:
+        end = min(start + 500, size)
+        yield (x[start:end], y[start:end])
+        start = end + 1
+
+
 def show_failures(model, x, y):
-    prediction = model.predict_on_batch(x)
-    pi = np.argmax(prediction, axis=1)
-    yi = np.argmax(y, axis=1)
-    fails = [x for x, y, t in zip(x, yi, pi) if y != t]
+    fails = []
+    for batch in batchify(x, y):
+        prediction = model.predict_on_batch(batch[0])
+        pi = np.argmax(prediction, axis=1)
+        yi = np.argmax(batch[1], axis=1)
+        fails.extend([x for x, y, t in zip(batch[0], yi, pi) if y != t])
     show_images(fails)
 
 
@@ -136,7 +147,7 @@ def optimize(x, y):
     plt.show()
 
 
-def learn(x_train, y_train, x_test, y_test):
+def learn(x_train, y_train, x_val, y_val):
     controller = UserControlledLearningRate()
 
     model = build_model()
@@ -146,18 +157,27 @@ def learn(x_train, y_train, x_test, y_test):
     model.fit(
         x=x_train,
         y=y_train,
-        validation_data=(x_test, y_test),
+        validation_data=(x_val, y_val),
         epochs=1000,
         verbose=1,
         batch_size=132,
         callbacks=[controller],
         shuffle=True)
-
-    stats = model.test_on_batch(x_test, y_test)
-    stats = dict(zip(model.metrics_names, stats))
-    print('\nTest loss:', stats['loss'])
-    print('Test error rate:', (1 - stats['acc']) * 100, '%')
     return model
+
+
+def test(model, x, y):
+    loss = 0
+    acc = 0
+    for b in batchify(x, y):
+        stats = model.test_on_batch(b[0], b[1])
+        stats = dict(zip(model.metrics_names, stats))
+        loss += stats['loss'] * b[0].shape[0]
+        acc += (1 - stats['acc']) * 100 * b[0].shape[0]
+    loss = loss / x.shape[0]
+    acc = acc / x.shape[0]
+    print('\nTest loss:', loss)
+    print('Test error rate:', acc, '%')
 
 
 def main(preview_data = True):
@@ -195,6 +215,7 @@ def main(preview_data = True):
     model = None
     with tf.device('/GPU:0'):
         model = learn(x_train, y_train, x_test, y_test)
+        test(model, x_test, y_test)
         #optimize(x_train, y_train)
 
     if model and preview_data:

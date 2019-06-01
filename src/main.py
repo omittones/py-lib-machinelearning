@@ -8,7 +8,7 @@ def exec_list():
         print(e.id)
 
 def run(args):
-    from learn_mnist_digits import main
+    from learn_curve_recognition import main
     if len(args) > 1:
         command = args[1]
         if command == 'test':
@@ -31,6 +31,8 @@ def run(args):
                 from learn_mnist_digits import main
             elif what == 'xor':
                 from learn_xor import main
+            elif what == 'curves':
+                from learn_curve_recognition import main
     main()
 
 
