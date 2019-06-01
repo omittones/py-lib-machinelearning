@@ -164,27 +164,25 @@ def main(preview_data = True):
     x_train, y_train = prepare_data(x_train, y_train)
     x_test, y_test = prepare_data(x_test, y_test)
 
-    multiplier = np.random.uniform(0, 1, x_train.shape[0])
-    noise = np.random.normal(0.2, 0.2, x_train.shape)
-    x_train += multiplier[:, None, None, None] * noise
+    # multiplier = np.random.uniform(0, 1, x_train.shape[0])
+    # noise = np.random.normal(0.2, 0.2, x_train.shape)
+    # x_train += multiplier[:, None, None, None] * noise
+
+    with Stopwatch('Preparing data'):
+        generator = ImageDataGenerator(
+             rotation_range=30,
+             zoom_range=0,
+             width_shift_range=4,
+             height_shift_range=4,
+             shear_range=10,
+             brightness_range=(0, 1),
+             fill_mode='nearest',
+             data_format='channels_last')
+        data = generator.flow(x_train, y_train, batch_size=len(x_train))
+        x_train, y_train = next(data)
 
     if preview_data:
         show_images(x_train)
-
-    # with Stopwatch('Preparing data'):
-    #     generator = ImageDataGenerator(
-    #          rotation_range=30,
-    #          zoom_range=0,
-    #          width_shift_range=4,
-    #          height_shift_range=4,
-    #          shear_range=10,
-    #          #brightness_range=(0, 1),
-    #          fill_mode='nearest',
-    #          data_format='channels_last')
-    #     x = np.stack([x, x, x], axis = 3)
-    #     preview_transformations(generator, x)
-    #     data = generator.flow(x, y, batch_size=size)
-    #     x, y = next(map(unstack, data))
 
     config = tf.ConfigProto(log_device_placement=False)
     sess = tf.Session(config=config)

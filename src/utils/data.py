@@ -4,7 +4,7 @@ from math import sqrt, ceil, sin, cos, pi, floor
 
 def show_images(images):
     i = 0
-    x = floor(sqrt(len(images)))
+    x = floor(sqrt(min(len(images), 100)))
     y = x
     if x * y < len(images):
         x += 1
