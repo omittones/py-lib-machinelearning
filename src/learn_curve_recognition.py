@@ -1,6 +1,6 @@
-from timeit import default_timer
 import itertools
-from math import sqrt, ceil, sin, cos, pi
+from timeit import default_timer
+from math import sqrt, ceil, sin, cos, pi, floor
 # from keras import initializers
 # from keras.datasets import mnist
 # from keras.optimizers import Adadelta
@@ -19,7 +19,7 @@ import numpy as np
 from numpy import random
 # from controllers import UserControlledLearningRate, Stopwatch
 from PIL import Image, ImageDraw
-
+from utils import show_images, batchify
 
 def build_model(input_tensor=None):
 
@@ -76,48 +76,38 @@ def generate_images(nm_samples=100, nm_strokes_per_sample = 10):
     y_data = list()
     for _ in range(0, nm_samples):
         points = list([[0,0]])
-        headings = list()
+        angles = list()
         heading = random.rand() * 2 * pi
-        angles = (random.rand(nm_strokes_per_sample) - 0.5) * pi
-        sizes = random.randint(0, 10, nm_strokes_per_sample)
-        for (a,s) in zip(angles, sizes):
+        a = 0
+        for _ in range(0, nm_strokes_per_sample):
+            if a == 0 or random.rand() > 0.8:
+                a = round((random.rand() - 0.5) * pi, 1)
+            if random.rand() > 0.8:
+                a = -a
             heading += a
-            x = points[-1][0] + cos(heading) * s
-            y = points[-1][1] + sin(heading) * s
+            x = points[-1][0] + cos(heading)
+            y = points[-1][1] + sin(heading)
             points.append([x,y])
-            headings.append(heading)
+            angles.append(a)
 
         points = np.array(points, dtype='float32')
-        points = points - points.min(axis=(0))
-        points = points / points.max(axis=(0))
-        points = list((points * 20 + 3).flatten())
+        points = points - points.min()
+        points = points / points.max()
+        points = list((points * 21 + 3).flatten())
 
         image = Image.new('L', (28,28), 0)
         draw = ImageDraw.Draw(image)
-        draw.line(points, fill=255, width=2, joint='curve')
+        draw.line(points, fill=255, width=2)
         data = np.asarray(image.getdata(), dtype='float32')
         data /= 255
         x_data.append(data)
-        y_data.append(headings)
+        y_data.append(angles)
 
     return (x_data, y_data)
 
 
-def show_images(images):
-    i = 0
-    figure = plt.figure()
-    for img in images:
-        i += 1
-        ax = figure.add_subplot(10, 10, i)
-        ax.imshow(img.reshape((28,28)), cmap='gray')
-        ax.get_xaxis().set_visible(False)
-        ax.get_yaxis().set_visible(False)
-        if i == 100: break
-    plt.show()
-
-
 def main(preview_data = True):
-    x, y = generate_images()
+    x, y = generate_images(nm_samples=100)
     show_images(x)
     return
 

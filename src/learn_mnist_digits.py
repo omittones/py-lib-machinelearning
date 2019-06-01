@@ -17,7 +17,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
 from controllers import UserControlledLearningRate, Stopwatch
-
+from utils import batchify, show_images
 
 def build_model(input_tensor=None):
 
@@ -80,28 +80,6 @@ def preview_transformations(generator, images):
     images = images[0:100]
     transformed = next(generator.flow(images, batch_size=100))
     show_images(transformed)
-
-
-def show_images(images):
-    i = 0
-    figure = plt.figure()
-    for img in images:
-        i += 1
-        ax = figure.add_subplot(10, 10, i)
-        ax.imshow(img.reshape((28,28)), cmap='gray')
-        ax.get_xaxis().set_visible(False)
-        ax.get_yaxis().set_visible(False)
-        if i == 100: break
-    plt.show()
-
-
-def batchify(x, y):
-    size = x.shape[0] - 1
-    start = 0
-    while start < size:
-        end = min(start + 500, size)
-        yield (x[start:end], y[start:end])
-        start = end + 1
 
 
 def show_failures(model, x, y):
