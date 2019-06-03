@@ -1,9 +1,7 @@
-from timeit import default_timer
-import itertools
-from math import sqrt, ceil
+import tensorflow as tf
 from keras import initializers
 from keras.datasets import mnist
-from keras.optimizers import Adadelta
+from keras.optimizers import Adadelta, Optimizer
 from keras.utils import to_categorical
 from keras.models import Model
 from keras.layers import Input, Dense, LeakyReLU, Softmax, Dropout, Flatten, Conv2D, Reshape, MaxPooling2D, Activation, ReLU, ELU, PReLU
@@ -11,18 +9,26 @@ from keras.losses import categorical_crossentropy
 from keras.metrics import categorical_accuracy
 from keras.callbacks import LearningRateScheduler
 from keras.preprocessing.image import ImageDataGenerator
-import keras.backend as K
-import tensorflow as tf
+from timeit import default_timer
+import itertools
+from math import sqrt, ceil
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
-from controllers import UserControlledLearningRate, Stopwatch
+from controllers import UserControlledLearningRate, Stopwatch, StopOnEscape
 from utils import batchify, show_images
+import keras.backend as K
 
-def build_model(input_tensor=None):
 
-    rn = initializers.glorot_normal()
+def build_model(input_tensor=None, init_to_zeros = False):
+
     activation = ELU(alpha=0.8)
+    if init_to_zeros:
+        ki = initializers.zero()
+        bi = initializers.zero()
+    else:
+        ki = initializers.glorot_normal()
+        bi = initializers.zero()
 
     inputs = Input(shape=(28, 28, 1), dtype='float32', tensor=input_tensor)
     x = inputs
@@ -31,8 +37,8 @@ def build_model(input_tensor=None):
                strides=(2,2),
                padding='same',
                use_bias=True,
-               kernel_initializer=rn,
-               bias_initializer=rn)
+               kernel_initializer=ki,
+               bias_initializer=bi)
     x = l(x)
     l = MaxPooling2D(pool_size=(2, 2))
     x = l(x)
@@ -43,8 +49,8 @@ def build_model(input_tensor=None):
                strides=(1,1),
                padding='same',
                use_bias=True,
-               kernel_initializer=rn,
-               bias_initializer=rn)
+               kernel_initializer=ki,
+               bias_initializer=bi)
     x = l(x)
     l = MaxPooling2D(pool_size=(2, 2))
     x = l(x)
@@ -52,17 +58,17 @@ def build_model(input_tensor=None):
     x = l(x)
     l = Flatten()
     x = l(x)
-    # l = Dense(500, kernel_initializer=rn, bias_initializer=rn)
+    # l = Dense(500, kernel_initializer=ki, bias_initializer=bi)
     # x = l(x)
     # l = activation
     # x = l(x)
-    l = Dense(500, kernel_initializer=rn, bias_initializer=rn)
+    l = Dense(500, kernel_initializer=ki, bias_initializer=bi)
     x = l(x)
     l = activation
     x = l(x)
     # l = Dropout(rate=0.01)
     # x = l(x)
-    l = Dense(10, kernel_initializer=rn, bias_initializer=rn)
+    l = Dense(10, kernel_initializer=ki, bias_initializer=bi)
     x = l(x)
     l = Softmax()
     outputs = l(x)
@@ -92,36 +98,30 @@ def show_failures(model, x, y):
     show_images(fails)
 
 
-def unstack(sample):
-    bx, by = sample
-    bx = bx[:,:,:,1]
-    return (bx, by)
-
-
 def optimize(x, y):
     x = x[0:10000]
     y = y[0:10000]
     try:
         for hyper in [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100]:
-            with tf.device('/GPU:0'):
-                model = build_model()
-                optimizer = Adadelta(decay=0)
-                model.compile(optimizer=optimizer, loss=categorical_crossentropy, metrics=['accuracy'])
-                start = default_timer()
-                result = model.fit(
-                    x=x,
-                    y=y,
-                    epochs=5,
-                    verbose=1,
-                    batch_size=hyper,
-                    shuffle=True)
-                duration = default_timer() - start
-                gy = result.history['loss']
-                gx = np.linspace(0, duration, num=len(gy), endpoint=True)
-                plt.plot(gx, gy, label=f'version-{hyper}')
-                print(hyper, gy[-1])
-    except:
-        pass
+            model = build_model()
+            optimizer = Adadelta(decay=0)
+            model.compile(optimizer=optimizer, loss=categorical_crossentropy, metrics=['accuracy'])
+            start = default_timer()
+            result = model.fit(
+                x=x,
+                y=y,
+                epochs=50,
+                verbose=1,
+                batch_size=hyper,
+                callbacks=[StopOnEscape()],
+                shuffle=True)
+            duration = default_timer() - start
+            gy = result.history['loss']
+            gx = np.linspace(0, duration, num=len(gy), endpoint=True)
+            plt.plot(gx, gy, label=f'version-{hyper}')
+            print(hyper, gy[-1])
+    except Exception as ex:
+        print(ex)
     plt.ylabel('Loss')
     plt.xlabel('Time (sec)')
     plt.legend()
@@ -161,7 +161,7 @@ def test(model, x, y):
     print('Test error rate:', acc, '%')
 
 
-def main(preview_data = True):
+def main(preview_data = False):
 
     (x_train, y_train), (x_test, y_test) = mnist.load_data()
     x_train, y_train = prepare_data(x_train, y_train)
@@ -171,33 +171,34 @@ def main(preview_data = True):
     noise = np.random.normal(0.2, 0.2, x_train.shape)
     x_train += multiplier[:, None, None, None] * noise
 
-    with Stopwatch('Preparing data'):
-        generator = ImageDataGenerator(
-             rotation_range=30,
-             zoom_range=0,
-             width_shift_range=4,
-             height_shift_range=4,
-             shear_range=10,
-             brightness_range=None,
-             fill_mode='nearest',
-             data_format='channels_last')
-        data = generator.flow(x_train, y_train, batch_size=len(x_train))
-        x_gen, y_gen = next(data)
-        x_train = np.concatenate((x_train, x_gen), axis=0)
-        y_train = np.concatenate((y_train, y_gen), axis=0)
+    # with Stopwatch('Preparing data'):
+    #     generator = ImageDataGenerator(
+    #          rotation_range=30,
+    #          zoom_range=0,
+    #          width_shift_range=4,
+    #          height_shift_range=4,
+    #          shear_range=10,
+    #          brightness_range=None,
+    #          fill_mode='nearest',
+    #          data_format='channels_last')
+    #     data = generator.flow(x_train, y_train, batch_size=len(x_train))
+    #     x_gen, y_gen = next(data)
+    #     x_train = np.concatenate((x_train, x_gen), axis=0)
+    #     y_train = np.concatenate((y_train, y_gen), axis=0)
 
     if preview_data:
         show_images(x_train)
 
-    config = tf.ConfigProto(log_device_placement=False)
-    sess = tf.Session(config=config)
-    K.set_session(sess)
-
     model = None
-    with tf.device('/GPU:0'):
-        model = learn(x_train, y_train, x_test, y_test)
-        test(model, x_test, y_test)
-        #optimize(x_train, y_train)
+    with tf.device('/gpu:0'):
 
-    if model and preview_data:
-        show_failures(model, x_test, y_test)
+        config = tf.ConfigProto(log_device_placement=False)
+        sess = tf.Session(config=config)
+        K.set_session(sess)
+
+        #model = learn(x_train, y_train, x_test, y_test)
+        #test(model, x_test, y_test)
+        optimize(x_train, y_train)
+
+        if model and preview_data:
+            show_failures(model, x_test, y_test)
