@@ -1,24 +1,18 @@
-import itertools
-from timeit import default_timer
-from math import sqrt, ceil, sin, cos, pi, floor
+from math import sin, cos, pi
 from keras import initializers
-from keras.datasets import mnist
 from keras.optimizers import Adadelta
-from keras.utils import to_categorical
 from keras.models import Model
 from keras.layers import Input, Dense, LeakyReLU, Softmax, Dropout, Flatten, Conv2D, Reshape, MaxPooling2D, Activation, ReLU, ELU, PReLU
 from keras.losses import mean_squared_error
-from keras.callbacks import LearningRateScheduler
-from keras.preprocessing.image import ImageDataGenerator
 import keras.backend as K
 import tensorflow as tf
-import seaborn as sns
-import matplotlib.pyplot as plt
 import numpy as np
 from numpy import random
-from controllers import UserControlledLearningRate, Stopwatch
+from controllers import UserControlledLearningRate
 from PIL import Image, ImageDraw
-from utils import show_images, show_failures
+from utils import show_images
+from utils.web import PredictionServer
+import http.server as server
 
 
 def generate_images(nm_samples=100, nm_strokes_per_sample = 10, side_pixels = 100):
@@ -32,7 +26,7 @@ def generate_images(nm_samples=100, nm_strokes_per_sample = 10, side_pixels = 10
         total_strokes = random.randint(1, nm_strokes_per_sample)
         for _ in range(0, nm_strokes_per_sample):
             if _ >= total_strokes:
-                angles.append(-100)
+                angles.append(-5)
             else:
                 if a == 0 or random.rand() > 0.8:
                     a = round((random.rand() - 0.5) * pi, 1)
@@ -107,7 +101,7 @@ def build_model():
     return Model(inputs=inputs, outputs=outputs)
 
 
-def main(preview_data = True):
+def main(preview_data = False):
 
     x, y = generate_images(nm_samples=70000, side_pixels=28)
     if preview_data:
@@ -126,3 +120,6 @@ def main(preview_data = True):
         K.set_session(sess)
 
         model = learn(x_train, y_train, x_test, y_test)
+
+        PredictionServer.model = model
+        server.test(HandlerClass=PredictionServer)

@@ -45,10 +45,10 @@ def ask_args(original):
 
 if __name__ == '__main__':
     try:
-        if sys.modules.get('ptvsd', None) != None:
-            args = ask_args(sys.argv)
-            run(args)
-        else:
-            run(sys.argv)
+        # if sys.modules.get('ptvsd', None) != None:
+        #     args = ask_args(sys.argv)
+        #     run(args)
+        # else:
+        run(sys.argv)
     except KeyboardInterrupt:
         pass
