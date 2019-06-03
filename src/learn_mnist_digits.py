@@ -16,7 +16,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
 from controllers import UserControlledLearningRate, Stopwatch, StopOnEscape
-from utils import batchify, show_images
+from utils import batchify, show_images, show_failures
 import keras.backend as K
 
 
@@ -94,16 +94,6 @@ def preview_transformations(generator, images):
     images = images[0:100]
     transformed = next(generator.flow(images, batch_size=100))
     show_images(transformed)
-
-
-def show_failures(model, x, y):
-    fails = []
-    for batch in batchify(x, y):
-        prediction = model.predict_on_batch(batch[0])
-        pi = np.argmax(prediction, axis=1)
-        yi = np.argmax(batch[1], axis=1)
-        fails.extend([x for x, y, t in zip(batch[0], yi, pi) if y != t])
-    show_images(fails)
 
 
 def optimize(x, y):
