@@ -95,3 +95,17 @@ class UserControlledLearningRate(Callback):
 
     def on_epoch_end(self, epoch, logs=None):
         pass
+
+
+class StopOnEscape(Callback):
+    """
+    Controller that stops training when Esc pressed.
+    """
+
+    def __init__(self):
+        super().__init__()
+
+    def on_batch_begin(self, batch, logs=None):
+        char = readchar()
+        if char == key.ESC:
+            self.model.stop_training = True
