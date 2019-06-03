@@ -22,7 +22,9 @@ import keras.backend as K
 
 def build_model(input_tensor=None, init_to_zeros = False):
 
-    activation = ELU(alpha=0.8)
+    def activation():
+        return ELU(alpha=0.8)
+
     if init_to_zeros:
         ki = initializers.zero()
         bi = initializers.zero()
@@ -32,6 +34,8 @@ def build_model(input_tensor=None, init_to_zeros = False):
 
     inputs = Input(shape=(28, 28, 1), dtype='float32', tensor=input_tensor)
     x = inputs
+    l = Dropout(rate=0.1)
+    x = l(x)
     l = Conv2D(filters=32,
                kernel_size=(6, 6),
                strides=(2,2),
@@ -42,7 +46,7 @@ def build_model(input_tensor=None, init_to_zeros = False):
     x = l(x)
     l = MaxPooling2D(pool_size=(2, 2))
     x = l(x)
-    l = activation
+    l = activation()
     x = l(x)
     l = Conv2D(filters=32,
                kernel_size=(4, 4),
@@ -54,20 +58,24 @@ def build_model(input_tensor=None, init_to_zeros = False):
     x = l(x)
     l = MaxPooling2D(pool_size=(2, 2))
     x = l(x)
-    l = activation
+    l = activation()
     x = l(x)
     l = Flatten()
     x = l(x)
-    # l = Dense(500, kernel_initializer=ki, bias_initializer=bi)
-    # x = l(x)
-    # l = activation
-    # x = l(x)
-    l = Dense(500, kernel_initializer=ki, bias_initializer=bi)
+    l = Dense(300, kernel_initializer=ki, bias_initializer=bi)
     x = l(x)
-    l = activation
+    l = activation()
     x = l(x)
-    # l = Dropout(rate=0.01)
-    # x = l(x)
+    l = Dense(200, kernel_initializer=ki, bias_initializer=bi)
+    x = l(x)
+    l = activation()
+    x = l(x)
+    l = Dense(100, kernel_initializer=ki, bias_initializer=bi)
+    x = l(x)
+    l = activation()
+    x = l(x)
+    l = Dropout(rate=0.5)
+    x = l(x)
     l = Dense(10, kernel_initializer=ki, bias_initializer=bi)
     x = l(x)
     l = Softmax()
@@ -99,10 +107,10 @@ def show_failures(model, x, y):
 
 
 def optimize(x, y):
-    x = x[0:10000]
-    y = y[0:10000]
+    x = x[0:20000]
+    y = y[0:20000]
     try:
-        for hyper in [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100]:
+        for hyper in [154, 156, 158, 160, 162, 164]:
             model = build_model()
             optimizer = Adadelta(decay=0)
             model.compile(optimizer=optimizer, loss=categorical_crossentropy, metrics=['accuracy'])
@@ -110,7 +118,7 @@ def optimize(x, y):
             result = model.fit(
                 x=x,
                 y=y,
-                epochs=50,
+                epochs=10,
                 verbose=1,
                 batch_size=hyper,
                 callbacks=[StopOnEscape()],
@@ -141,7 +149,7 @@ def learn(x_train, y_train, x_val, y_val):
         validation_data=(x_val, y_val),
         epochs=1000,
         verbose=1,
-        batch_size=800,
+        batch_size=160,
         callbacks=[controller],
         shuffle=True)
     return model
@@ -196,9 +204,9 @@ def main(preview_data = False):
         sess = tf.Session(config=config)
         K.set_session(sess)
 
-        #model = learn(x_train, y_train, x_test, y_test)
-        #test(model, x_test, y_test)
-        optimize(x_train, y_train)
+        model = learn(x_train, y_train, x_test, y_test)
+        test(model, x_test, y_test)
+        #optimize(x_train, y_train)
 
         if model and preview_data:
             show_failures(model, x_test, y_test)
