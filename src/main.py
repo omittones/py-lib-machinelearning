@@ -8,7 +8,7 @@ def exec_list():
         print(e.id)
 
 def run(args):
-    from learn_reinforcement import main
+    from learn_physics import main
     if len(args) > 1:
         command = args[1]
         if command == 'test':
@@ -31,8 +31,8 @@ def run(args):
                 from learn_xor import main
             elif what == 'curves':
                 from learn_curve_recognition import main
-            elif what == 'reinforcement':
-                from learn_reinforcement import main
+            elif what == 'physics':
+                from learn_physics import main
     main()
 
 
