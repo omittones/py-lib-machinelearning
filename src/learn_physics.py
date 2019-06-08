@@ -18,12 +18,7 @@ import numpy as np
 from utils import key, readchar
 from controllers import UserControlledLearningRate
 
-NMBALLS = 1
-
-def enhance_input(x):
-    d = np.array(x)
-    d = np.resize(d, (NMBALLS, 6))
-    return d
+NMBALLS = 3
 
 
 def build_model(input_sample, output_sample, softmax=False):
@@ -45,8 +40,8 @@ def build_model(input_sample, output_sample, softmax=False):
     # x = keras.layers.Conv2D(100, (1, 6), strides=(1,1), padding='valid', use_bias=True)(x)
     x = keras.layers.Flatten()(x)
     # x = keras.layers.ReLU(negative_slope=0.1)(x)
-    # x = keras.layers.Dense(600, use_bias=True)(x)
-    # x = keras.layers.ReLU(negative_slope=0.1)(x)
+    x = keras.layers.Dense(100, use_bias=True)(x)
+    x = keras.layers.ReLU(negative_slope=0.1)(x)
     x = keras.layers.Dense(50, use_bias=True, kernel_initializer='glorot_uniform')(x)
     x = keras.layers.ReLU(negative_slope=0.1)(x)
     x = keras.layers.Dense(nm_outputs, use_bias=True, kernel_initializer='glorot_uniform')(x)
@@ -61,14 +56,21 @@ def build_model(input_sample, output_sample, softmax=False):
     return model, loss
 
 
-def speed_diff(s0, s1):
-    assert len(s0) == NMBALLS * 6 and len(s1) == NMBALLS * 6
-    s = 0
-    for i in range(0, NMBALLS):
-        v0 = np.array(s0[i * 6 + 2: i * 6 + 4])
-        v1 = np.array(s1[i * 6 + 2: i * 6 + 4])
-        s += np.linalg.norm(v0 - v1)
-    return s
+def process_observations(o0, o1, x, y, importance):
+    assert len(o0) == NMBALLS * 6 and len(o1) == NMBALLS * 6
+    for i in range(0, NMBALLS * 6, 6):
+        inputs = list()
+        inputs.extend(o0[i:i+6])
+        inputs.extend(o0[:i])
+        inputs.extend(o0[i+6:])
+        outputs = o1[i:i+6]
+
+        s0 = np.array(o0[i + 2: i + 4])
+        s1 = np.array(o1[i + 2: i + 4])
+        sd = np.linalg.norm(s0 - s1)
+        x.append(np.array(inputs))
+        y.append(np.array(outputs))
+        importance.append(sd)
 
 
 def main():
@@ -111,9 +113,7 @@ def main():
             observation1 = list(r.Observation)
 
             if observation0 is not None:
-                speed_diffs.append(speed_diff(observation0, observation1))
-                x.append(enhance_input(observation0))
-                y.append(observation1)
+                process_observations(observation0, observation1, x, y, speed_diffs)
 
             if gui.IsCompleted: return
 
@@ -124,24 +124,33 @@ def main():
     ny = np.array(y, dtype='float32')
     nsd = np.array(speed_diffs, dtype='float32')
     print('Speed diff histogram:', np.histogram(nsd)[0])
-    nsd = nsd.clip(0.05, 5)
+    nsd = nsd.clip(0.001, 1)
 
-    model.compile(optimizer=keras.optimizers.Adadelta(lr=5), loss=loss)
-    model.fit(x=nx, y=ny, sample_weight=nsd, validation_split=0.2, verbose=2, epochs=400, batch_size=1000, shuffle=True, callbacks=[controller])
+    model.compile(optimizer=keras.optimizers.Adadelta(lr=1), loss=loss)
+    model.fit(x=nx, y=ny, sample_weight=nsd, validation_split=0.2, verbose=1, epochs=400, batch_size=1000, shuffle=True, callbacks=[controller])
 
-    state0 = observation1
+    def from_ball(ball):
+        return [ball.Position.X, ball.Position.Y, ball.Speed.X, ball.Speed.Y, ball.Acceleration.X, ball.Acceleration.Y]
+
     while not gui.IsCompleted:
-        state0 = enhance_input(state0)
-        state0 = np.expand_dims(state0, 0)
-        state1 = model.predict(state0, batch_size=1)
-        state1 = state1.clip(-1, 1)
-        for i in range(0, env.Objects.Length):
-            x = i * 6
-            env.Objects[i].Position = PointF(state1[0, x], state1[0, x+1])
-            env.Objects[i].Speed = PointF(state1[0, x+2], state1[0, x+3])
-            env.Objects[i].Acceleration = PointF(state1[0, x+4], state1[0, x+5])
+
+        inputs = np.zeros((NMBALLS, NMBALLS * 6))
+        for i in range(0, NMBALLS):
+            ball = env.Objects[i]
+            inputs[i, 0:6] = from_ball(ball)
+            position = 6
+            for j in range(0, NMBALLS):
+                if i != j:
+                    inputs[i, position:position+6] = from_ball(env.Objects[j])
+                    position += 6
+
+        result = model.predict(inputs, batch_size=NMBALLS)
+        result = result.clip(-1, 1)
+        for i in range(0, NMBALLS):
+            env.Objects[i].Position = PointF(result[i, 0], result[i, 1])
+            env.Objects[i].Speed = PointF(result[i, 2], result[i, 3])
+            env.Objects[i].Acceleration = PointF(result[i, 4], result[i, 5])
         time.sleep(.05)
-        state0 = state1
 
     gui.Wait()
     if gui.Exception != None:
