@@ -1,25 +1,27 @@
 import time
 import numpy as np
 import seaborn as sns
+import matplotlib.pyplot as plt
 from os import path
 import io
+import keras
 from keras import activations, initializers
-from keras.layers import Activation, Dense, Input, Softmax, ReLU
-from keras.losses import binary_crossentropy
+from keras.layers import Activation, Dense, Input, Softmax, ReLU, BatchNormalization
 from keras.models import Model
 from keras.optimizers import SGD, Adadelta
-from matplotlib import pyplot
 from controllers import UserControlledLearningRate
 import tensorflow as tf
 
+
 def draw_seaborn_scatter(data, prediction):
     sns.set(style="darkgrid")
-
-    p = sns.blend_palette(['#ff0000','#ff0000','#0000ff','#0000ff'], as_cmap=True)
-    _, ax = pyplot.subplots(figsize=(6, 6))
+    hue = prediction.argmax(axis=1)
+    p = sns.color_palette("Paired", prediction.shape[1])
+    p = p[0:hue.max() + 1] #bug when more colors than categories
+    _, ax = plt.subplots(figsize=(6, 6))
     ax.set_aspect("equal")
-    sns.scatterplot(x=data[:,0], y=data[:,1], hue=prediction[:,0], palette=p)
-    pyplot.show()
+    sns.scatterplot(x=data[:,0], y=data[:,1], hue=hue, palette=p)
+    plt.show()
 
 
 def draw_seaborn_density(data, prediction):
@@ -28,7 +30,7 @@ def draw_seaborn_density(data, prediction):
     blues = data[prediction[:,1]>0.5,:]
 
     sns.set(style="darkgrid")
-    _, ax = pyplot.subplots(figsize=(6, 6))
+    _, ax = plt.subplots(figsize=(6, 6))
     ax.set_aspect("equal")
 
     # Draw the two density plots
@@ -40,7 +42,7 @@ def draw_seaborn_density(data, prediction):
     blue = sns.color_palette("Blues")[-2]
     ax.text(2.5, 8.2, "reds", size=16, color=blue)
     ax.text(3.8, 4.5, "blues", size=16, color=red)
-    pyplot.show()
+    plt.show()
 
 
 def user_input_test(model):
@@ -53,18 +55,6 @@ def user_input_test(model):
             print(prediction, '--> class:', prediction.argmax())
         else:
             break
-
-
-def build_model():
-    rn = initializers.glorot_uniform()
-    inputs = Input(shape=(2,), dtype='float32')
-    x = Dense(5, use_bias=True, kernel_initializer=rn, bias_initializer='zeros')(inputs)
-    x = ReLU()(x)
-    x = Dense(2, use_bias=True, kernel_initializer=rn, bias_initializer='zeros')(x)
-    x = ReLU()(x)
-    x = Dense(1, use_bias=True, kernel_initializer=rn, bias_initializer='zeros')(x)
-    outputs = Activation('sigmoid')(x)
-    return Model(inputs=inputs, outputs=outputs)
 
 
 def xor_dataset(batches):
@@ -84,28 +74,78 @@ def jain_dataset():
     return x, y
 
 
+def s1_dataset():
+    x = np.loadtxt(path.join(__file__, '../cluster-s1-data.txt'), dtype='float32', delimiter='    ')
+    labels = np.loadtxt(path.join(__file__, '../cluster-s1-labels.txt'), dtype='int8')
+    x = x - x.min()
+    x = x / x.max()
+
+    labels = labels - labels.min()
+    max_label = labels.max()
+    y = np.zeros((labels.shape[0], max_label + 1), dtype='float32')
+    for i,l in enumerate(labels):
+        y[i,l] = 1
+
+    shuffled = np.random.permutation(x.shape[0])
+    return x[shuffled], y[shuffled]
+
+
+def build_model(complexity):
+    rn = initializers.glorot_uniform()
+    inputs = Input(shape=(2,), dtype='float32')
+    x = Dense(20 - complexity, use_bias=True, kernel_initializer=rn, bias_initializer='zeros')(inputs)
+    x = ReLU()(x)
+    x = Dense(20 - complexity, use_bias=True, kernel_initializer=rn, bias_initializer='zeros')(x)
+    x = ReLU()(x)
+    x = Dense(15, use_bias=True, kernel_initializer=rn, bias_initializer='zeros')(x)
+    outputs = Softmax()(x)
+    return Model(inputs=inputs, outputs=outputs)
+
+
 def main():
 
-    x, y = jain_dataset()
+    x, y = s1_dataset()
+    # draw_seaborn_scatter(x, y)
 
-    bins, _ = np.histogram(y[:,0], bins=2)
+    bins, _ = np.histogram(y.argmax(axis=1))
     print('Histogram:', bins)
 
     controller = UserControlledLearningRate()
 
     start = time.time()
 
-    def train(epochs):
-        model = build_model()
-        model.summary()
+    def train(model, epochs):
         opt = Adadelta()
-        model.compile(optimizer=opt, loss=binary_crossentropy, metrics=['accuracy'])
-        model.fit(x=x, y=y, epochs=epochs, validation_split=0.5, shuffle=True, verbose=2, batch_size=10, callbacks=[controller])
+        model.compile(optimizer=opt, loss=keras.losses.categorical_crossentropy, metrics=['accuracy'])
+        history = model.fit(x=x, y=y, epochs=epochs, validation_split=0.2, shuffle=True, verbose=2, batch_size=5000, callbacks=[controller])
+
+        # plt.plot(history.history['acc'])
+        # plt.plot(history.history['val_acc'])
+        # plt.title('model accuracy')
+        # plt.ylabel('accuracy')
+        # plt.xlabel('epoch')
+        # plt.legend(['train', 'test'], loc='upper left')
+        # plt.show()
+        # summarize history for loss
+        plt.plot(history.history['loss'])
+
         return model
 
-    with tf.device('/cpu:0'):
-        model = train(10000)
-        prediction = model.predict(x)
+    labels = []
+    with tf.device('/gpu:0'):
+        c = 16
+        labels.append(f'comp-{c}')
+        model = build_model(c)
+        model.summary()
+        model = train(model, 2000)
+        test = np.random.rand(5000, 2) * (x.max() - x.min()) + x.min()
+        test = test.astype('float32')
+        prediction = model.predict(test)
+        print('\nDone', labels[-1])
+        print('\nElapsed', time.time() - start, 'seconds')
 
-    print('\nElapsed', time.time() - start, 'seconds')
-    draw_seaborn_scatter(x, prediction)
+        plt.title('model loss')
+        plt.ylabel('loss')
+        plt.xlabel('epoch')
+        plt.legend(labels, loc='upper left')
+        draw_seaborn_scatter(test, prediction)
