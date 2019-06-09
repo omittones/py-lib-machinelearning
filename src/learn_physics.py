@@ -41,9 +41,9 @@ def build_model(input_sample, output_sample, softmax=False):
     x = keras.layers.Flatten()(x)
     # x = keras.layers.ReLU(negative_slope=0.1)(x)
     x = keras.layers.Dense(100, use_bias=True)(x)
-    x = keras.layers.ReLU(negative_slope=0.1)(x)
+    x = keras.layers.ReLU(negative_slope=0)(x)
     x = keras.layers.Dense(50, use_bias=True, kernel_initializer='glorot_uniform')(x)
-    x = keras.layers.ReLU(negative_slope=0.1)(x)
+    x = keras.layers.ReLU(negative_slope=0)(x)
     x = keras.layers.Dense(nm_outputs, use_bias=True, kernel_initializer='glorot_uniform')(x)
     # x = keras.layers.ReLU(negative_slope=0.1)(x)
     # x = keras.layers.Activation(activation='tanh')(x)
@@ -134,23 +134,25 @@ def main():
 
     while not gui.IsCompleted:
 
+        env.Reset()
         inputs = np.zeros((NMBALLS, NMBALLS * 6))
-        for i in range(0, NMBALLS):
-            ball = env.Objects[i]
-            inputs[i, 0:6] = from_ball(ball)
-            position = 6
-            for j in range(0, NMBALLS):
-                if i != j:
-                    inputs[i, position:position+6] = from_ball(env.Objects[j])
-                    position += 6
 
-        result = model.predict(inputs, batch_size=NMBALLS)
-        result = result.clip(-1, 1)
-        for i in range(0, NMBALLS):
-            env.Objects[i].Position = PointF(result[i, 0], result[i, 1])
-            env.Objects[i].Speed = PointF(result[i, 2], result[i, 3])
-            env.Objects[i].Acceleration = PointF(result[i, 4], result[i, 5])
-        time.sleep(.05)
+        for e in range(0, 1000):
+            for i in range(0, NMBALLS):
+                ball = env.Objects[i]
+                inputs[i, 0:6] = from_ball(ball)
+                position = 6
+                for j in range(0, NMBALLS):
+                    if i != j:
+                        inputs[i, position:position+6] = from_ball(env.Objects[j])
+                        position += 6
+            result = model.predict(inputs, batch_size=NMBALLS)
+            result = result.clip(-1, 1)
+            for i in range(0, NMBALLS):
+                env.Objects[i].Position = PointF(result[i, 0], result[i, 1])
+                env.Objects[i].Speed = PointF(result[i, 2], result[i, 3])
+                env.Objects[i].Acceleration = PointF(result[i, 4], result[i, 5])
+            time.sleep(.02)
 
     gui.Wait()
     if gui.Exception != None:

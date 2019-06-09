@@ -1,20 +1,22 @@
 import time
 import numpy as np
 import seaborn as sns
+from os import path
+import io
 from keras import activations, initializers
-from keras.layers import Activation, Dense, Input, LeakyReLU, Softmax
-from keras.losses import categorical_crossentropy
+from keras.layers import Activation, Dense, Input, Softmax, ReLU
+from keras.losses import binary_crossentropy
 from keras.models import Model
-from keras.optimizers import SGD
+from keras.optimizers import SGD, Adadelta
 from matplotlib import pyplot
 from controllers import UserControlledLearningRate
-
+import tensorflow as tf
 
 def draw_seaborn_scatter(data, prediction):
     sns.set(style="darkgrid")
 
     p = sns.blend_palette(['#ff0000','#ff0000','#0000ff','#0000ff'], as_cmap=True)
-    f, ax = pyplot.subplots(figsize=(6, 6))
+    _, ax = pyplot.subplots(figsize=(6, 6))
     ax.set_aspect("equal")
     sns.scatterplot(x=data[:,0], y=data[:,1], hue=prediction[:,0], palette=p)
     pyplot.show()
@@ -26,7 +28,7 @@ def draw_seaborn_density(data, prediction):
     blues = data[prediction[:,1]>0.5,:]
 
     sns.set(style="darkgrid")
-    f, ax = pyplot.subplots(figsize=(6, 6))
+    _, ax = pyplot.subplots(figsize=(6, 6))
     ax.set_aspect("equal")
 
     # Draw the two density plots
@@ -53,40 +55,57 @@ def user_input_test(model):
             break
 
 
-def main():
+def build_model():
+    rn = initializers.glorot_uniform()
+    inputs = Input(shape=(2,), dtype='float32')
+    x = Dense(5, use_bias=True, kernel_initializer=rn, bias_initializer='zeros')(inputs)
+    x = ReLU()(x)
+    x = Dense(2, use_bias=True, kernel_initializer=rn, bias_initializer='zeros')(x)
+    x = ReLU()(x)
+    x = Dense(1, use_bias=True, kernel_initializer=rn, bias_initializer='zeros')(x)
+    outputs = Activation('sigmoid')(x)
+    return Model(inputs=inputs, outputs=outputs)
 
-    data_shape = (1000,2)
+
+def xor_dataset(batches):
+    data_shape = (batches,2)
     data = np.random.random(data_shape)
     bools = data < 0.5
     bools = bools[:,0] != bools[:,1]
-    classes = np.ones(data_shape, dtype='float32')
+    classes = np.ones((batches,1), dtype='float32')
     classes[:,0] = classes[:,0] * bools
-    classes[:,1] = classes[:,1] * np.invert(bools)
+    return data, classes
 
-    #rn = initializers.RandomNormal(mean=0.0, stddev=0.005, seed=4337)
-    rn = initializers.glorot_uniform()
 
-    inputs = Input(shape=(2,), dtype='float32')
-    x = Dense(4, kernel_initializer=rn, bias_initializer=rn)(inputs)
-    x = LeakyReLU(alpha=0.3)(x)
-    x = Dense(3, kernel_initializer=rn, bias_initializer=rn)(inputs)
-    x = LeakyReLU(alpha=0.3)(x)
-    x = Dense(2, kernel_initializer=rn, bias_initializer=rn)(x)
-    outputs = Softmax()(x)
+def jain_dataset():
+    jain = np.loadtxt(path.join(__file__, '../clusters-jain.txt'), dtype='float32', delimiter='\t')
+    x = jain[:,0:2]
+    y = jain[:,2:3] - 1.0
+    return x, y
 
-    model = Model(inputs=inputs, outputs=outputs)
 
-    start = time.time()
+def main():
+
+    x, y = jain_dataset()
+
+    bins, _ = np.histogram(y[:,0], bins=2)
+    print('Histogram:', bins)
 
     controller = UserControlledLearningRate()
 
+    start = time.time()
+
     def train(epochs):
-        sgd = SGD(lr=0.1, momentum=0.1, decay=0.0, nesterov=False)
-        model.compile(optimizer=sgd, loss=categorical_crossentropy, metrics=['accuracy'])
-        model.fit(x=data, y=classes, epochs=epochs, verbose=2, batch_size=10, callbacks=[controller])
+        model = build_model()
+        model.summary()
+        opt = Adadelta()
+        model.compile(optimizer=opt, loss=binary_crossentropy, metrics=['accuracy'])
+        model.fit(x=x, y=y, epochs=epochs, validation_split=0.5, shuffle=True, verbose=2, batch_size=10, callbacks=[controller])
+        return model
 
-    train(10000)
+    with tf.device('/cpu:0'):
+        model = train(10000)
+        prediction = model.predict(x)
 
-    prediction = model.predict(data)
-    print('Elapsed', time.time() - start, 'seconds')
-    draw_seaborn_scatter(data, prediction)
+    print('\nElapsed', time.time() - start, 'seconds')
+    draw_seaborn_scatter(x, prediction)
