@@ -8,7 +8,7 @@ def exec_list():
         print(e.id)
 
 def run(args):
-    from learn_xor import main
+    from learn_mnist_digits import main
     if len(args) > 1:
         command = args[1]
         if command == 'test':

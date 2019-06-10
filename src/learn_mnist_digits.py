@@ -15,6 +15,7 @@ from math import sqrt, ceil
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
+from os import path
 from controllers import UserControlledLearningRate, Stopwatch, StopOnEscape
 from utils import batchify, show_images, show_failures
 import keras.backend as K
@@ -34,8 +35,6 @@ def build_model(input_tensor=None, init_to_zeros = False):
 
     inputs = Input(shape=(28, 28, 1), dtype='float32', tensor=input_tensor)
     x = inputs
-    l = Dropout(rate=0.1)
-    x = l(x)
     l = Conv2D(filters=32,
                kernel_size=(6, 6),
                strides=(2,2),
@@ -62,15 +61,13 @@ def build_model(input_tensor=None, init_to_zeros = False):
     x = l(x)
     l = Flatten()
     x = l(x)
-    l = Dense(300, kernel_initializer=ki, bias_initializer=bi)
+    l = Dense(500, kernel_initializer=ki, bias_initializer=bi)
     x = l(x)
     l = activation()
     x = l(x)
-    l = Dense(200, kernel_initializer=ki, bias_initializer=bi)
+    l = Dropout(rate=0.5)
     x = l(x)
-    l = activation()
-    x = l(x)
-    l = Dense(100, kernel_initializer=ki, bias_initializer=bi)
+    l = Dense(250, kernel_initializer=ki, bias_initializer=bi)
     x = l(x)
     l = activation()
     x = l(x)
@@ -97,10 +94,10 @@ def preview_transformations(generator, images):
 
 
 def optimize(x, y):
-    x = x[0:20000]
-    y = y[0:20000]
+    # x = x[0:20000]
+    # y = y[0:20000]
     try:
-        for hyper in [154, 156, 158, 160, 162, 164]:
+        for hyper in [500, 1000, 2000, 4000, 8000]:
             model = build_model()
             optimizer = Adadelta(decay=0)
             model.compile(optimizer=optimizer, loss=categorical_crossentropy, metrics=['accuracy'])
@@ -126,11 +123,17 @@ def optimize(x, y):
     plt.show()
 
 
-def learn(x_train, y_train, x_val, y_val):
+def learn(x_train, y_train, x_val, y_val, clean=False):
     controller = UserControlledLearningRate()
 
     model = build_model()
     model.summary()
+
+    filename = path.join(__file__, '../learn_mnist_digits.h5')
+    if not clean and path.exists(filename):
+        print(f'Loading weights from {filename}')
+        model.load_weights(filename)
+
     optimizer = Adadelta(decay=0)
     model.compile(optimizer=optimizer, loss=categorical_crossentropy, metrics=['accuracy'])
     model.fit(
@@ -139,9 +142,13 @@ def learn(x_train, y_train, x_val, y_val):
         validation_data=(x_val, y_val),
         epochs=1000,
         verbose=1,
-        batch_size=160,
+        batch_size=8000,
         callbacks=[controller],
         shuffle=True)
+
+    print(f'\nSaving weights to {filename}')
+    model.save_weights(filename)
+
     return model
 
 
@@ -196,7 +203,7 @@ def main(preview_data = False):
 
         model = learn(x_train, y_train, x_test, y_test)
         test(model, x_test, y_test)
-        #optimize(x_train, y_train)
+        # optimize(x_train, y_train)
 
         if model and preview_data:
             show_failures(model, x_test, y_test)

@@ -90,12 +90,12 @@ def s1_dataset():
     return x[shuffled], y[shuffled]
 
 
-def build_model(complexity):
+def build_model(hidden_node_count = 4):
     rn = initializers.glorot_uniform()
     inputs = Input(shape=(2,), dtype='float32')
-    x = Dense(20 - complexity, use_bias=True, kernel_initializer=rn, bias_initializer='zeros')(inputs)
+    x = Dense(hidden_node_count, use_bias=True, kernel_initializer=rn, bias_initializer='zeros')(inputs)
     x = ReLU()(x)
-    x = Dense(20 - complexity, use_bias=True, kernel_initializer=rn, bias_initializer='zeros')(x)
+    x = Dense(hidden_node_count, use_bias=True, kernel_initializer=rn, bias_initializer='zeros')(x)
     x = ReLU()(x)
     x = Dense(15, use_bias=True, kernel_initializer=rn, bias_initializer='zeros')(x)
     outputs = Softmax()(x)
@@ -117,7 +117,7 @@ def main():
     def train(model, epochs):
         opt = Adadelta()
         model.compile(optimizer=opt, loss=keras.losses.categorical_crossentropy, metrics=['accuracy'])
-        history = model.fit(x=x, y=y, epochs=epochs, validation_split=0.2, shuffle=True, verbose=2, batch_size=5000, callbacks=[controller])
+        history = model.fit(x=x, y=y, epochs=epochs, validation_split=0.2, shuffle=True, verbose=2, batch_size=1000, callbacks=[controller])
 
         # plt.plot(history.history['acc'])
         # plt.plot(history.history['val_acc'])
@@ -133,9 +133,9 @@ def main():
 
     labels = []
     with tf.device('/gpu:0'):
-        c = 16
-        labels.append(f'comp-{c}')
-        model = build_model(c)
+        hnc = 5
+        labels.append(f'comp-{hnc}')
+        model = build_model(hnc)
         model.summary()
         model = train(model, 2000)
         test = np.random.rand(5000, 2) * (x.max() - x.min()) + x.min()
