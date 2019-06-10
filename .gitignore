@@ -5,3 +5,4 @@ __pycache__
 *.user
 /packages/
 /.vscode/.ropeproject/objectdb
+/logs/
