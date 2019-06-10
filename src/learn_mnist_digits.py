@@ -4,10 +4,10 @@ from keras.datasets import mnist
 from keras.optimizers import Adadelta, Optimizer
 from keras.utils import to_categorical
 from keras.models import Model
-from keras.layers import Input, Dense, LeakyReLU, Softmax, Dropout, Flatten, Conv2D, Reshape, MaxPooling2D, Activation, ReLU, ELU, PReLU
+from keras.layers import Input, Dense, LeakyReLU, Softmax, Dropout, Flatten, Conv2D, Reshape, MaxPooling2D, Activation, ReLU, ELU, PReLU, BatchNormalization
 from keras.losses import categorical_crossentropy
 from keras.metrics import categorical_accuracy
-from keras.callbacks import LearningRateScheduler
+from keras.callbacks import LearningRateScheduler, TensorBoard
 from keras.preprocessing.image import ImageDataGenerator
 from timeit import default_timer
 import itertools
@@ -35,48 +35,34 @@ def build_model(input_tensor=None, init_to_zeros = False):
 
     inputs = Input(shape=(28, 28, 1), dtype='float32', tensor=input_tensor)
     x = inputs
-    l = Conv2D(filters=32,
+    x = Conv2D(filters=32,
                kernel_size=(6, 6),
                strides=(2,2),
                padding='same',
                use_bias=True,
                kernel_initializer=ki,
-               bias_initializer=bi)
-    x = l(x)
-    l = MaxPooling2D(pool_size=(2, 2))
-    x = l(x)
-    l = activation()
-    x = l(x)
-    l = Conv2D(filters=32,
+               bias_initializer=bi)(x)
+    x = MaxPooling2D(pool_size=(2, 2))(x)
+    x = BatchNormalization()(x)
+    x = activation()(x)
+    x = Conv2D(filters=32,
                kernel_size=(4, 4),
                strides=(1,1),
                padding='same',
                use_bias=True,
                kernel_initializer=ki,
-               bias_initializer=bi)
-    x = l(x)
-    l = MaxPooling2D(pool_size=(2, 2))
-    x = l(x)
-    l = activation()
-    x = l(x)
-    l = Flatten()
-    x = l(x)
-    l = Dense(500, kernel_initializer=ki, bias_initializer=bi)
-    x = l(x)
-    l = activation()
-    x = l(x)
-    l = Dropout(rate=0.5)
-    x = l(x)
-    l = Dense(250, kernel_initializer=ki, bias_initializer=bi)
-    x = l(x)
-    l = activation()
-    x = l(x)
-    l = Dropout(rate=0.5)
-    x = l(x)
-    l = Dense(10, kernel_initializer=ki, bias_initializer=bi)
-    x = l(x)
-    l = Softmax()
-    outputs = l(x)
+               bias_initializer=bi)(x)
+    x = MaxPooling2D(pool_size=(2, 2))(x)
+    x = activation()(x)
+    x = Flatten()(x)
+    x = Dense(500, kernel_initializer=ki, bias_initializer=bi)(x)
+    x = activation()(x)
+    x = Dense(250, kernel_initializer=ki, bias_initializer=bi)(x)
+    x = activation()(x)
+    x = Dropout(rate=0.9)(x)
+    x = Dense(10, kernel_initializer=ki, bias_initializer=bi)(x)
+    x = Softmax()(x)
+    outputs = x
     return Model(inputs=inputs, outputs=outputs)
 
 
@@ -123,11 +109,14 @@ def optimize(x, y):
     plt.show()
 
 
-def learn(x_train, y_train, x_val, y_val, clean=False):
+def learn(x_train, y_train, x_val, y_val, clean=True):
     controller = UserControlledLearningRate()
 
     model = build_model()
     model.summary()
+
+    # statsdir = path.join(__file__, '../../logs/mnist')
+    # tb = TensorBoard(log_dir=statsdir, histogram_freq=1)
 
     filename = path.join(__file__, '../learn_mnist_digits.h5')
     if not clean and path.exists(filename):
@@ -172,6 +161,9 @@ def main(preview_data = False):
     x_train, y_train = prepare_data(x_train, y_train)
     x_test, y_test = prepare_data(x_test, y_test)
 
+    x_train = np.concatenate((x_train, x_train))
+    y_train = np.concatenate((y_train, y_train))
+
     multiplier = np.random.uniform(0, 1, x_train.shape[0])
     noise = np.random.normal(0.2, 0.2, x_train.shape)
     x_train += multiplier[:, None, None, None] * noise
@@ -195,7 +187,7 @@ def main(preview_data = False):
         show_images(x_train)
 
     model = None
-    with tf.device('/gpu:0'):
+    with tf.device('/device:GPU:0'):
 
         config = tf.ConfigProto(log_device_placement=False)
         sess = tf.Session(config=config)
