@@ -17,36 +17,52 @@ import keras
 import numpy as np
 from utils import key, readchar
 from controllers import UserControlledLearningRate
+from os import path
 
-NMBALLS = 3
+NMBALLS = 1
 
 
-def build_model(input_sample, output_sample, softmax=False):
-    nm_inputs = input_sample.shape
-    nm_outputs = len(output_sample)
+def from_ball(ball):
+    return [ball.Position.X, ball.Position.Y, ball.Speed.X, ball.Speed.Y] #, ball.Acceleration.X, ball.Acceleration.Y]
+
+
+def to_ball(ball, values):
+    ball.Position = PointF(values[0], values[1])
+    ball.Speed = PointF(values[2], values[3])
+    # ball.Acceleration = PointF(values[4], values[5])
+
+
+def process_observations(o0, o1, i):
+    assert len(o0) == NMBALLS * 6 and len(o1) == NMBALLS * 6
+    i = i * 6
+    inputs = list()
+    inputs.extend(o0[i:i+4]) # position and speed for current ball
+    outputs = o1[i:i+4] # new position and speed
+    for j in range(0, NMBALLS * 6, 6): # positions of other balls
+        if j != i:
+            inputs.extend(o0[j:j+2])
+    s0 = np.array(o0[i + 2: i + 4])
+    s1 = np.array(o1[i + 2: i + 4])
+    sd = np.linalg.norm(s0 - s1) # change in speed dictates importance
+    return np.array(inputs), np.array(outputs), sd
+
+
+def build_model(input_shape, output_shape, softmax=False):
+
+    gu = keras.initializers.glorot_uniform(12346)
 
     if softmax:
         loss = keras.losses.categorical_crossentropy
     else:
         loss = keras.losses.mean_squared_error
 
-    i = keras.layers.Input(shape=nm_inputs, dtype='float32')
+    i = keras.layers.Input(shape=input_shape, dtype='float32')
 
-    def activation(t):
-        return
 
     x = i
-    x = keras.layers.Reshape((NMBALLS,6,1,))(x)
-    # x = keras.layers.Conv2D(100, (1, 6), strides=(1,1), padding='valid', use_bias=True)(x)
-    x = keras.layers.Flatten()(x)
-    # x = keras.layers.ReLU(negative_slope=0.1)(x)
-    x = keras.layers.Dense(100, use_bias=True)(x)
-    x = keras.layers.ReLU(negative_slope=0)(x)
-    x = keras.layers.Dense(50, use_bias=True, kernel_initializer='glorot_uniform')(x)
-    x = keras.layers.ReLU(negative_slope=0)(x)
-    x = keras.layers.Dense(nm_outputs, use_bias=True, kernel_initializer='glorot_uniform')(x)
-    # x = keras.layers.ReLU(negative_slope=0.1)(x)
-    # x = keras.layers.Activation(activation='tanh')(x)
+    x = keras.layers.Dense(200, use_bias=True, kernel_initializer=gu)(x)
+    x = keras.layers.ReLU()(x)
+    x = keras.layers.Dense(np.prod(output_shape), use_bias=True, kernel_initializer=gu)(x)
 
     if softmax:
         x = keras.layers.Softmax()(x)
@@ -56,21 +72,36 @@ def build_model(input_sample, output_sample, softmax=False):
     return model, loss
 
 
-def process_observations(o0, o1, x, y, importance):
-    assert len(o0) == NMBALLS * 6 and len(o1) == NMBALLS * 6
-    for i in range(0, NMBALLS * 6, 6):
-        inputs = list()
-        inputs.extend(o0[i:i+6])
-        inputs.extend(o0[:i])
-        inputs.extend(o0[i+6:])
-        outputs = o1[i:i+6]
+def run_sim_and_return_movement(env):
+    actions = np.zeros((NMBALLS, 5), dtype='float32')
+    actions[:,0] = 1
+    actions = actions.flatten()
+    x = list()
+    y = list()
+    speed_diffs = list()
+    observations = list()
 
-        s0 = np.array(o0[i + 2: i + 4])
-        s1 = np.array(o1[i + 2: i + 4])
-        sd = np.linalg.norm(s0 - s1)
-        x.append(np.array(inputs))
-        y.append(np.array(outputs))
-        importance.append(sd)
+    for e in range(0, 1000):
+        env.Reset()
+        observations.append(None)
+        for i in range(0, 401):
+            for j in range(0, 3):
+                r = env.Step(actions)
+            obs = list(r.Observation)
+            observations.append(obs)
+
+    for (obs0, obs1) in zip(observations[:-1], observations[1:]):
+        if obs0 is not None and obs1 is not None:
+            for b in range(0, NMBALLS):
+                sx, sy, sw = process_observations(obs0, obs1, b)
+                x.append(sx)
+                y.append(sy)
+                speed_diffs.append(sw)
+
+    nx = np.array(x, dtype='float32')
+    ny = np.array(y, dtype='float32')
+    nsd = np.array(speed_diffs, dtype='float32')
+    return nx, ny, nsd
 
 
 def main():
@@ -85,8 +116,6 @@ def main():
 
     gui = GUI.ShowForm(Func[Form](create_view))
 
-    x = list()
-    y = list()
     model = None
 
     class Stopper(keras.callbacks.Callback):
@@ -96,62 +125,64 @@ def main():
                 self.model.stop_training = True
     controller = Stopper()
 
-    speed_diffs = list()
+    movement_file = path.join(__file__, f'../movement_for_{NMBALLS}_balls.npz')
+    try:
+        file = np.load(movement_file)
+        nx = file['nx']
+        ny = file['ny']
+        nsd = file['nsd']
+        file.close()
+    except:
+        nx, ny, nsd = run_sim_and_return_movement(env)
+        np.savez(movement_file, nx = nx, ny = ny, nsd = nsd)
 
-    actions = np.zeros((NMBALLS, 5), dtype='float32')
-    actions[:,0] = 1
-    actions = actions.flatten()
+    # nx = nx[nsd > 0]
+    # ny = ny[nsd > 0]
+    # nsd = nsd[nsd > 0]
+    # rx = np.random.randint(0, nx.shape[0], dtype='int32')
+    # print('X:', nx[rx])
+    # print('Y:', ny[rx])
+    # print('SW:', nsd[rx])
+    # return
 
-    for e in range(0, 500):
-        env.Reset()
-        observation0 = None
-        observation1 = None
-        for i in range(0, 201):
-            observation0 = observation1
-            for s in range(0, 3):
-                r = env.Step(actions)
-            observation1 = list(r.Observation)
+    SUM = 100000.0
+    h, b = np.histogram(nsd)
+    print('Speed diff histogram:', h)
+    h = SUM / h.size / h
+    nsd = np.digitize(nsd, b[1:], right=True)
+    nsd = h[nsd]
+    assert nsd.sum() < SUM + 0.1 and nsd.sum() > SUM - 0.1
 
-            if observation0 is not None:
-                process_observations(observation0, observation1, x, y, speed_diffs)
-
-            if gui.IsCompleted: return
-
-    model, loss = build_model(x[0], y[0], softmax=False)
+    model, loss = build_model(nx.shape[1:], ny.shape[1:], softmax=False)
     model.summary()
-
-    nx = np.array(x, dtype='float32')
-    ny = np.array(y, dtype='float32')
-    nsd = np.array(speed_diffs, dtype='float32')
-    print('Speed diff histogram:', np.histogram(nsd)[0])
-    nsd = nsd.clip(0.001, 1)
-
     model.compile(optimizer=keras.optimizers.Adadelta(lr=1), loss=loss)
-    model.fit(x=nx, y=ny, sample_weight=nsd, validation_split=0.2, verbose=1, epochs=400, batch_size=1000, shuffle=True, callbacks=[controller])
-
-    def from_ball(ball):
-        return [ball.Position.X, ball.Position.Y, ball.Speed.X, ball.Speed.Y, ball.Acceleration.X, ball.Acceleration.Y]
+    model.fit(x=nx, y=ny,
+        sample_weight=nsd,
+        validation_split=0.2,
+        verbose=2,
+        epochs=200,
+        batch_size=20000,
+        shuffle=True,
+        callbacks=[controller])
 
     while not gui.IsCompleted:
 
         env.Reset()
-        inputs = np.zeros((NMBALLS, NMBALLS * 6))
+        inputs = np.zeros((NMBALLS, 2 + NMBALLS * 2))
 
-        for e in range(0, 1000):
+        for e in range(0, 100):
             for i in range(0, NMBALLS):
                 ball = env.Objects[i]
-                inputs[i, 0:6] = from_ball(ball)
-                position = 6
+                inputs[i, 0:4] = from_ball(ball)
+                position = 4
                 for j in range(0, NMBALLS):
                     if i != j:
-                        inputs[i, position:position+6] = from_ball(env.Objects[j])
-                        position += 6
+                        inputs[i, position] = env.Objects[j].Position.X
+                        inputs[i, position + 1] = env.Objects[j].Position.Y
+                        position += 2
             result = model.predict(inputs, batch_size=NMBALLS)
-            result = result.clip(-1, 1)
             for i in range(0, NMBALLS):
-                env.Objects[i].Position = PointF(result[i, 0], result[i, 1])
-                env.Objects[i].Speed = PointF(result[i, 2], result[i, 3])
-                env.Objects[i].Acceleration = PointF(result[i, 4], result[i, 5])
+                to_ball(env.Objects[i], result[i])
             time.sleep(.02)
 
     gui.Wait()
