@@ -6,3 +6,4 @@ __pycache__
 /packages/
 /.vscode/.ropeproject/objectdb
 /logs/
+.ipynb_checkpoints
