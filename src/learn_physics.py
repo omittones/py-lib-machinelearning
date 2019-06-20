@@ -41,11 +41,14 @@ def process_observations(o0, o1, i):
     for j in range(0, NMBALLS * 6, 6): # positions of other balls
         if j != i:
             inputs.extend(o0[j:j+2])
-    s0 = np.array(o0[i + 2: i + 4])
-    s1 = np.array(o1[i + 2: i + 4])
-    sd = np.linalg.norm(s0 - s1) # change in speed dictates importance
-    return np.array(inputs), np.array(outputs), sd
+    inputs = np.array(inputs)
+    outputs = np.array(outputs)
 
+    s0 = inputs[2:4]
+    s1 = outputs[2:4]
+    sd = np.linalg.norm(s0 - s1) # change in speed dictates importance
+
+    return inputs, outputs, sd
 
 def build_model(input_shape, output_shape, softmax=False):
 
@@ -58,9 +61,8 @@ def build_model(input_shape, output_shape, softmax=False):
 
     i = keras.layers.Input(shape=input_shape, dtype='float32')
 
-
     x = i
-    x = keras.layers.Dense(200, use_bias=True, kernel_initializer=gu)(x)
+    x = keras.layers.Dense(20, use_bias=True, kernel_initializer=gu)(x)
     x = keras.layers.ReLU()(x)
     x = keras.layers.Dense(np.prod(output_shape), use_bias=True, kernel_initializer=gu)(x)
 
@@ -81,14 +83,12 @@ def run_sim_and_return_movement(env):
     speed_diffs = list()
     observations = list()
 
-    for e in range(0, 1000):
+    for e in range(0, 100):
         env.Reset()
         observations.append(None)
-        for i in range(0, 401):
-            for j in range(0, 3):
-                r = env.Step(actions)
-            obs = list(r.Observation)
-            observations.append(obs)
+        for i in range(0, 4001):
+            r = env.Step(actions)
+            observations.append(list(r.Observation))
 
     for (obs0, obs1) in zip(observations[:-1], observations[1:]):
         if obs0 is not None and obs1 is not None:
@@ -124,6 +124,7 @@ def main():
             if char == key.ESC or gui.IsCompleted:
                 self.model.stop_training = True
     controller = Stopper()
+    controller = UserControlledLearningRate()
 
     movement_file = path.join(__file__, f'../movement_for_{NMBALLS}_balls.npz')
     try:
@@ -136,41 +137,56 @@ def main():
         nx, ny, nsd = run_sim_and_return_movement(env)
         np.savez(movement_file, nx = nx, ny = ny, nsd = nsd)
 
-    # nx = nx[nsd > 0]
-    # ny = ny[nsd > 0]
-    # nsd = nsd[nsd > 0]
+    nx[:,2:4] = nx[:,2:4] * 0.02
+    ny[:,2:4] = ny[:,2:4] * 0.02
+
+    # nx = nx[nsd <= 0]
+    # ny = ny[nsd <= 0]
+    # nsd = nsd[nsd <= 0]
     # rx = np.random.randint(0, nx.shape[0], dtype='int32')
     # print('X:', nx[rx])
     # print('Y:', ny[rx])
     # print('SW:', nsd[rx])
+    # print('EY:', nx[rx, 0:2] + nx[rx, 2:4])
     # return
 
-    SUM = 100000.0
-    h, b = np.histogram(nsd)
-    print('Speed diff histogram:', h)
-    h = SUM / h.size / h
-    nsd = np.digitize(nsd, b[1:], right=True)
-    nsd = h[nsd]
-    assert nsd.sum() < SUM + 0.1 and nsd.sum() > SUM - 0.1
+    # SUM = 100000.0
+    # h, b = np.histogram(nsd)
+    # print('Speed diff histogram:', h)
+    # h = SUM / h.size / h
+    # nsd = np.digitize(nsd, b[1:], right=True)
+    # nsd = h[nsd]
+    # assert nsd.sum() < SUM + 0.1 and nsd.sum() > SUM - 0.1
 
     model, loss = build_model(nx.shape[1:], ny.shape[1:], softmax=False)
     model.summary()
-    model.compile(optimizer=keras.optimizers.Adadelta(lr=1), loss=loss)
+
+    filename = path.join(__file__, '../learn_physics.h5')
+    if path.exists(filename):
+        print(f'Loading weights from {filename}')
+        model.load_weights(filename)
+
+    optimizer = keras.optimizers.Adadelta(lr=1)
+    optimizer = keras.optimizers.SGD(lr=0.5)
+    model.compile(optimizer=optimizer, loss=loss)
     model.fit(x=nx, y=ny,
-        sample_weight=nsd,
+        #sample_weight=nsd,
         validation_split=0.2,
         verbose=2,
-        epochs=200,
+        epochs=500,
         batch_size=20000,
         shuffle=True,
         callbacks=[controller])
+
+    print(f'\nSaving weights to {filename}')
+    model.save_weights(filename)
 
     while not gui.IsCompleted:
 
         env.Reset()
         inputs = np.zeros((NMBALLS, 2 + NMBALLS * 2))
 
-        for e in range(0, 100):
+        for e in range(0, 1000):
             for i in range(0, NMBALLS):
                 ball = env.Objects[i]
                 inputs[i, 0:4] = from_ball(ball)
@@ -180,10 +196,13 @@ def main():
                         inputs[i, position] = env.Objects[j].Position.X
                         inputs[i, position + 1] = env.Objects[j].Position.Y
                         position += 2
+
+            inputs[:, 2:4] = inputs[:, 2:4] * 0.02
             result = model.predict(inputs, batch_size=NMBALLS)
+            result[:, 2:4] = result[:, 2:4] / 0.02
+
             for i in range(0, NMBALLS):
                 to_ball(env.Objects[i], result[i])
-            time.sleep(.02)
 
     gui.Wait()
     if gui.Exception != None:
